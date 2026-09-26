@@ -1496,7 +1496,7 @@ function Workspace({
                   <strong style={{ fontSize: 12 }}>
                     {statusLabel[j.status] || j.status}
                   </strong>
-                  <span className="badge">{j.simulation ? "模拟" : j.operation.startsWith("image.") ? "GPU 图片" : "CPU 处理"}</span>
+                  <span className="badge">{j.simulation ? "模拟" : j.operation.startsWith("image.") ? "GPU 图片" : "Server 媒体处理"}</span>
                 </div>
                 <p>
                   {({ "mock.text.echo.v1": "文本回显", "mock.media.copy.v1": "素材复制", "image.generate.v1": "文生图", "image.edit.v1": "图片指令编辑", "image.reference.v1": "多图参考", "media.video.trim.v1": "视频截取", "media.audio.extract.v1": "提取音轨" } as Record<string, string>)[j.operation] || j.operation}{" "}
@@ -1699,7 +1699,7 @@ function Workspace({
         submit={async (operation, input) => {
           await flush();
           await api("/jobs", "POST", { requestId: crypto.randomUUID(), projectId: project.id, nodeId: dialog.node.id, sourceRevision: revision.current, operation, input });
-          setTasksOpen(true); await refresh(); notify("已提交 CPU 处理任务");
+          setTasksOpen(true); await refresh(); notify("已提交 Server 后台任务");
         }}
       />}
       {dialog?.type === "replace" && (

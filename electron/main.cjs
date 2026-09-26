@@ -38,8 +38,6 @@ app.on("second-instance", () => {
 });
 app.whenReady().then(() => {
   const executable = require('ffmpeg-static').replace('app.asar', 'app.asar.unpacked');
-  const disposeMedia = require('./media.cjs').installMedia(ipcMain, executable);
-  app.on('before-quit', () => { void disposeMedia(); });
   app.setAppUserModelId("app.zhilume.studio");
   const root = resolve(__dirname, "../dist");
   protocol.handle("app", (request) => {
@@ -56,7 +54,7 @@ app.whenReady().then(() => {
     return net.fetch(pathToFileURL(path).href);
   });
   const credentials = join(app.getPath("userData"), "session.encrypted");
-  ipcMain.handle("session:read", () => {
+  const readSession = () => {
     if (!safeStorage.isEncryptionAvailable() || !existsSync(credentials))
       return null;
     try {
@@ -64,6 +62,16 @@ app.whenReady().then(() => {
     } catch {
       return null;
     }
+  };
+  ipcMain.handle("session:read", readSession);
+  const disposeMedia = require('./media.cjs').installMedia(ipcMain, {
+    executable, root: join(app.getPath('userData'), 'media'), getSession: readSession,
+  });
+  let disposed = false;
+  app.on('before-quit', event => {
+    if (disposed) return;
+    event.preventDefault();
+    void disposeMedia().finally(() => { disposed = true; app.quit(); });
   });
   ipcMain.handle("session:write", (_event, value) => {
     if (!safeStorage.isEncryptionAvailable()) return false;

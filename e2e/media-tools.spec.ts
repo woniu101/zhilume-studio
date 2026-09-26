@@ -72,32 +72,36 @@ test('collage uses selected order and exports the configured pixel size', async 
   await expect.poll(() => result.evaluate((img: HTMLImageElement) => [img.naturalWidth, img.naturalHeight])).toEqual([128, 64]);
 });
 
-test('silent video reports missing audio and can still be trimmed locally', async ({ page, request }) => {
-  test.setTimeout(90000);
-  await setup(page, request, 'interaction-test.mp4', 'video');
+test('Web Server queue handles silence and trimmed video without any Worker', async ({ page, request }) => {
+  const { project } = await setup(page, request, 'interaction-test.mp4', 'video');
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: '提取音轨', exact: true }).click();
-  await dialog.getByRole('button', { name: '处理并预览' }).click();
-  await expect(dialog.getByRole('alert')).toContainText('没有可提取的音轨', { timeout: 30000 });
-  await dialog.getByRole('button', { name: '视频截取', exact: true }).click();
+  await dialog.getByRole('button', { name: '提交后台任务' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByText('视频没有可提取的音轨', { exact: true }).first()).toBeVisible();
+  const jobs = await (await request.get(base + '/jobs?projectId=' + project.id, { headers })).json();
+  expect(jobs[0].executor).toBe('server'); expect(jobs[0].errorCode).toBe('no_audio');
+  await page.keyboard.press('Escape');
+  await page.locator('.react-flow__node-media').click();
+  await page.getByRole('button', { name: '视频工具', exact: true }).click();
   await dialog.getByRole('spinbutton', { name: '开始秒数' }).fill('0.5');
   await dialog.getByRole('spinbutton', { name: '结束秒数' }).fill('1.5');
-  await dialog.getByRole('button', { name: '处理并预览' }).click();
-  await expect(dialog.locator('.media-tool-results video')).toBeVisible({ timeout: 30000 });
-  await expect.poll(() => dialog.locator('.media-tool-results video').evaluate((video: HTMLVideoElement) => video.duration)).toBeCloseTo(1, 1);
+  await dialog.getByRole('button', { name: '提交后台任务' }).click();
+  await expect(page.locator('.react-flow__node-media')).toHaveCount(2);
+  await expect.poll(() => page.locator('.kind-video video').last().evaluate((video: HTMLVideoElement) => video.duration)).toBeCloseTo(1, 1);
 });
 
-test('browser FFmpeg extracts one second of audio and saves an audio node', async ({ page, request }) => {
-  test.setTimeout(180000);
-  await setup(page, request, 'audio-video.mp4', 'video');
+test('Web submits Server audio job then archives a playable audio node', async ({ page, request }) => {
+  const { project } = await setup(page, request, 'audio-video.mp4', 'video');
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: '提取音轨', exact: true }).click();
-  await expect(dialog.getByRole('button', { name: '处理并预览' })).toBeEnabled();
   await dialog.getByRole('spinbutton', { name: '开始秒数' }).fill('0.5');
   await dialog.getByRole('spinbutton', { name: '结束秒数' }).fill('1.5');
-  await dialog.getByRole('button', { name: '处理并预览' }).click();
-  await expect.poll(async () => { const error = await dialog.getByRole('alert').count() ? await dialog.getByRole('alert').textContent() : ''; if (error) throw new Error(error); return dialog.locator('.media-tool-results audio').count(); }, { timeout: 45000 }).toBe(1);
-  await expect.poll(() => dialog.locator('audio').evaluate((audio: HTMLAudioElement) => audio.duration)).toBeCloseTo(1, 1);
-  await dialog.getByRole('button', { name: '保存到画布' }).click();
+  await dialog.getByRole('button', { name: '提交后台任务' }).click();
+  await expect(dialog).toHaveCount(0);
   await expect(page.locator('.kind-audio')).toHaveCount(1);
+  await expect.poll(() => page.locator('.kind-audio audio').evaluate((audio: HTMLAudioElement) => audio.duration)).toBeCloseTo(1, 1);
+  const jobs = await (await request.get(base + '/jobs?projectId=' + project.id, { headers })).json();
+  expect(jobs[0].executor).toBe('server'); expect(jobs[0].workerId).toBeNull(); expect(jobs[0].status).toBe('succeeded');
+  await page.screenshot({ path: 'test-results/web-server-audio.png' });
 });

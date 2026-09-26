@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, mediaUrl, uploadAsset } from "../api";
 import { Modal } from "../ui";
 import { gridRects, processImages, type ImageOperation, type ImageParameters } from "./image-processing";
-import { processNative, processVideo, WEB_DURATION_LIMIT, WEB_INPUT_LIMIT, type VideoOperation } from "./video-processing";
+import { type VideoOperation } from "./video-processing";
 import "./media-tools.css";
 
 type Asset = { id: string; kind: string; filename: string; url: string; size: number; dimensions?: { width: number; height: number } };
@@ -20,7 +20,9 @@ export function MediaTools({ asset, assets, close, complete, submit }: {
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [ids, setIds] = useState([asset.id]);
   const [duration, setDuration] = useState(0), [start, setStart] = useState(0), [end, setEnd] = useState(0);
-  const [route, setRoute] = useState("local"), [cpuReady, setCpuReady] = useState(false);
+  const [serverReady, setServerReady] = useState(false);
+  const nativeJob = useRef<string | null>(null);
+  const [retrySync, setRetrySync] = useState(false);
   const [busy, setBusy] = useState(false), [status, setStatus] = useState(""), [progress, setProgress] = useState(0), [error, setError] = useState("");
   const [results, setResults] = useState<Result[]>([]), [replace, setReplace] = useState(false);
   const [collagePreview, setCollagePreview] = useState("");
@@ -28,27 +30,40 @@ export function MediaTools({ asset, assets, close, complete, submit }: {
   const previewController = useRef<AbortController | null>(null);
   const drag = useRef<{ x: number; y: number } | null>(null);
   const isImage = asset.kind === "image", desktop = !!window.zhilumeDesktop?.media;
-  const webAllowed = asset.size <= WEB_INPUT_LIMIT && duration > 0 && duration <= WEB_DURATION_LIMIT;
+
   const canReplace = results.length === 1 && results[0].file.type.startsWith(asset.kind + "/");
   const field = (key: keyof ImageParameters, value: number | string) => setParams(p => ({ ...p, [key]: value }));
   useEffect(() => {
-    if (!isImage) api("/capabilities").then(list => setCpuReady(list.some((c: any) => c.id === operation && c.ready))).catch(() => setCpuReady(false));
+    if (!isImage && !desktop) api("/capabilities").then(list => setServerReady(list.some((c: any) => c.id === operation && c.ready))).catch(() => setServerReady(false));
   }, [operation, isImage]);
+  useEffect(() => () => {
+    controller.current?.abort(); retained.current.forEach(r => URL.revokeObjectURL(r.url));
+    if (nativeJob.current) void window.zhilumeDesktop?.media.dispose(nativeJob.current);
+  }, []);
   useEffect(() => {
-    if (!desktop && !webAllowed && duration > 0) setRoute("worker");
-  }, [desktop, webAllowed, duration]);
-  useEffect(() => () => { controller.current?.abort(); retained.current.forEach(r => URL.revokeObjectURL(r.url)); }, []);
-  useEffect(() => {
-    if (!busy && !results.length) return;
+    if (!busy && !results.length && !retrySync) return;
     const leave = (e: BeforeUnloadEvent) => { e.preventDefault(); };
     window.addEventListener("beforeunload", leave);
     return () => window.removeEventListener("beforeunload", leave);
-  }, [busy, results.length]);
+  }, [busy, results.length, retrySync]);
   async function loadImage(id: string, signal: AbortSignal) {
     const source = assets.find(a => a.id === id)!;
-    const response = await fetch(mediaUrl(source.url), { signal });
-    if (!response.ok) throw new Error("原图读取失败，请重新打开工具刷新素材地址");
-    const image = await createImageBitmap(await response.blob());
+    let blob: Blob;
+    const media = window.zhilumeDesktop?.media;
+    if (media) {
+      const task = await media.createSource(id);
+      const unsubscribe = media.onProgress(value => { if (value.id === task && value.phase === 'downloading') { setStatus('下载原图到本机缓存…'); setProgress(value.progress ?? 0); } });
+      const stop = () => { void media.cancel(task).catch(() => {}); };
+      signal.addEventListener('abort', stop, { once: true });
+      try { signal.throwIfAborted(); blob = new Blob([new Uint8Array(await media.readImage(task))]); }
+      finally { unsubscribe(); signal.removeEventListener('abort', stop); await media.dispose(task); }
+    } else {
+      const response = await fetch(mediaUrl(source.url), { signal });
+      if (!response.ok) throw new Error("原图读取失败，请重新打开工具刷新素材地址");
+      blob = await response.blob();
+    }
+    signal.throwIfAborted();
+    const image = await createImageBitmap(blob);
     if (image.width * image.height > 32_000_000) { image.close(); throw new Error("单张原图不能超过 3200 万像素"); }
     return image;
   }
@@ -84,22 +99,36 @@ export function MediaTools({ asset, assets, close, complete, submit }: {
       if (isImage) blobs = await renderImages(abort.signal);
       else {
         if (!videoParamsValid) throw new Error("截取范围必须位于视频时长内");
-        if (route === "worker") {
+        if (!desktop) {
           await submit(operation as VideoOperation, { assetId: asset.id, start, end }); close(); return;
         }
-        if (!desktop && !webAllowed) throw new Error("此视频超过浏览器本地处理限制，请选择 CPU Worker 或桌面版");
-        const response = await fetch(mediaUrl(asset.url), { signal: abort.signal });
-        if (!response.ok) throw new Error("素材读取失败，请重新打开工具");
-        setStatus(desktop ? "本机 FFmpeg 处理中…" : "浏览器 FFmpeg 处理中，首次加载约 32 MB…");
-        blobs = [desktop ? await processNative(response, operation as VideoOperation, { start, end }, abort.signal, setProgress) : await processVideo(await response.blob(), operation as VideoOperation, { start, end }, abort.signal, setProgress)];
+        const media = window.zhilumeDesktop!.media;
+        const id = retrySync && nativeJob.current ? nativeJob.current : await media.create(asset.id, operation, { start, end });
+        nativeJob.current = id;
+        const stages: Record<string, string> = { validating: "校验原始素材…", downloading: "下载原素材到本机缓存…", processing: "本机 FFmpeg 处理中…", syncing: "同步处理结果到项目…" };
+        const unsubscribe = media.onProgress(value => { if (value.id === id) { setStatus(stages[value.phase] || ""); setProgress(value.progress ?? 0); } });
+        const cancel = () => { void media.cancel(id); };
+        abort.signal.addEventListener("abort", cancel, { once: true });
+        try {
+          if (abort.signal.aborted) { await media.dispose(id); nativeJob.current = null; abort.signal.throwIfAborted(); }
+          const result = await (retrySync ? media.retrySync(id) : media.run(id));
+          if (!result.ok) {
+            setRetrySync(result.canRetrySync);
+            if (!result.canRetrySync) { await media.dispose(id); nativeJob.current = null; }
+            throw new Error(result.error.message);
+          }
+          setRetrySync(false); await media.dispose(id); nativeJob.current = null;
+          complete([result.asset], false); close(); return;
+        } finally { unsubscribe(); abort.signal.removeEventListener("abort", cancel); }
+
       }
       abort.signal.throwIfAborted();
-      const parameters = isImage ? { ...params } : { start, end };
+      const parameters = { ...params };
       const cols = Math.min(params.columns, ids.length);
       const sizes = operation === "image.grid.v1" ? gridRects(dimensions.width, dimensions.height, params.rows, params.columns)
         : operation === "image.collage.v1" ? [{ width: cols * params.cell + (cols + 1) * params.gap, height: Math.ceil(ids.length / cols) * params.cell + (Math.ceil(ids.length / cols) + 1) * params.gap }]
-        : isImage ? [{ width: params.width, height: params.height }] : [];
-      const output = blobs.map((blob, i) => ({ file: new File([blob], `${asset.filename.replace(/\.[^.]+$/, "").slice(0, 160)}-${labels[operation]}${blobs.length > 1 ? `-${i + 1}` : ""}.${isImage ? "png" : operation === "media.video.trim.v1" ? "mp4" : "wav"}`, { type: blob.type }), url: URL.createObjectURL(blob), dimensions: sizes[i], provenance: { operation, sourceAssetIds: operation === "image.collage.v1" ? [...ids] : [asset.id], parameters: { ...parameters, outputIndex: i } } }));
+        : [{ width: params.width, height: params.height }];
+      const output = blobs.map((blob, i) => ({ file: new File([blob], `${asset.filename.replace(/\.[^.]+$/, "").slice(0, 160)}-${labels[operation]}${blobs.length > 1 ? `-${i + 1}` : ""}.png`, { type: blob.type }), url: URL.createObjectURL(blob), dimensions: sizes[i], provenance: { operation, sourceAssetIds: operation === "image.collage.v1" ? [...ids] : [asset.id], parameters: { ...parameters, outputIndex: i } } }));
       retained.current = output; setResults(output); setProgress(1); setStatus("处理完成，原素材保持不变");
     } catch (e) { setStatus(""); setError(abort.signal.aborted ? "已取消处理" : (e as Error).message); }
     finally { setBusy(false); controller.current = null; }
@@ -127,8 +156,8 @@ export function MediaTools({ asset, assets, close, complete, submit }: {
   return <Modal title={isImage ? "图片工具" : "视频工具"} close={() => { if (!busy) close(); }}>
     <div className="media-tool">
       {!results.length && <>
-        <nav className="media-tool-tabs">{(isImage ? ["image.crop.v1", "image.collage.v1", "image.grid.v1"] : ["media.video.trim.v1", "media.audio.extract.v1"]).map(op => <button key={op} disabled={busy} className={operation === op ? "primary" : ""} onClick={() => setOperation(op as Operation)}>{labels[op as Operation]}</button>)}</nav>
-        <fieldset disabled={busy}>
+        <nav className="media-tool-tabs">{(isImage ? ["image.crop.v1", "image.collage.v1", "image.grid.v1"] : ["media.video.trim.v1", "media.audio.extract.v1"]).map(op => <button key={op} disabled={busy || retrySync} className={operation === op ? "primary" : ""} onClick={() => setOperation(op as Operation)}>{labels[op as Operation]}</button>)}</nav>
+        <fieldset disabled={busy || retrySync}>
           {isImage ? <>
             {operation === "image.collage.v1" ? <>
               <div className="media-collage-options">
@@ -158,8 +187,8 @@ export function MediaTools({ asset, assets, close, complete, submit }: {
               <label>开始（秒）<input aria-label="开始秒数" type="number" min={0} max={duration} step={.01} value={start} onChange={e => setStart(+e.target.value)} /></label>
               <label>结束（秒）<input aria-label="结束秒数" type="number" min={0} max={duration} step={.01} value={end} onChange={e => setEnd(+e.target.value)} /></label>
             </div>
-            <label>处理位置<select aria-label="处理位置" value={route} onChange={e => setRoute(e.target.value)}><option value="local" disabled={!desktop && !webAllowed}>{desktop ? "本机 · FFmpeg" : "浏览器 · 小文件"}</option><option value="worker" disabled={!cpuReady}>CPU Worker{!cpuReady && "（暂无在线执行端）"}</option></select></label>
-            <p className="muted">{operation === "media.video.trim.v1" ? "精确截取，输出 MP4（H.264 / AAC）。" : "提取所选时间段音轨，输出 WAV。"} 全程不使用 GPU。浏览器限 64 MB / 2 分钟；桌面输入、输出各限 1 GB。</p>
+            <p className="muted">{desktop ? "在本机处理，完成后自动同步到项目。远程素材会先下载到本机缓存。" : "提交到 Server 后台处理，关闭工具窗口不影响任务；在任务面板查看进度或取消。"}</p>
+            <p className="muted">{operation === "media.video.trim.v1" ? "输出 MP4（H.264 / AAC）。" : "输出 WAV（PCM）。"} 输入、输出各限 1 GB，无需 GPU Worker。</p>
           </>}
         </fieldset>
       </>}
@@ -169,8 +198,8 @@ export function MediaTools({ asset, assets, close, complete, submit }: {
         <p className="muted">默认生成新节点。保存失败时结果会留在此窗口；关闭窗口将释放尚未保存的结果。</p>
       </>}
       {status && <p role="status">{status}</p>}{busy && <progress max={1} value={progress} />}
-      {error && <p role="alert" className="media-tool-error">{error}</p>}
-      <footer>{busy ? <button onClick={() => controller.current?.abort()}>取消处理</button> : results.length ? <button className="primary" onClick={() => void save()}>保存到画布</button> : <button className="primary" onClick={() => void run()} disabled={!isImage && (!videoParamsValid || (route === "worker" && !cpuReady))}>{route === "worker" && !isImage ? "提交 CPU 任务" : "处理并预览"}</button>}</footer>
+      {error && <p role="alert" className="media-tool-error">{error}{retrySync && "。结果保留在本机，重试同步不会重新转码；关闭窗口会释放结果。"}</p>}
+      <footer>{busy ? (!isImage && !desktop ? <button disabled>正在提交…</button> : <button onClick={() => controller.current?.abort()}>取消处理</button>) : results.length ? <button className="primary" onClick={() => void save()}>保存到画布</button> : <button className="primary" onClick={() => void run()} disabled={!isImage && (!videoParamsValid || (!desktop && !serverReady))}>{isImage ? "处理并预览" : retrySync ? "重试同步" : desktop ? "处理并同步" : "提交后台任务"}</button>}</footer>
     </div>
   </Modal>;
 }

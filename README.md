@@ -1,6 +1,6 @@
 # Zhilume Studio
 
-织镜创作画布。React + TypeScript + React Flow + Tiptap，共用 Web 和 Electron 界面。当前为 **0.8.0 初版开发**，本轮配套 Server 0.6.0 / Worker 0.5.0。需要调整时直接重构，不保留历史开发版兼容层。
+织镜创作画布。React + TypeScript + React Flow + Tiptap，共用 Web 和 Electron 界面。当前为 **0.9.0 初版开发**，本轮配套 Server 0.7.0 / Worker 0.6.0。需要调整时直接重构，不保留历史开发版兼容层。
 
 ## 图片生成与编辑
 
@@ -24,8 +24,7 @@
 
 - 原图裁剪：拖动框选或精确像素坐标；宫格切分最多 8 × 8，无遗漏边缘像素。
 - 拼图：最多 16 张，排序、列数、间距、背景、单格尺寸；图片保持完整比例。单图/输出不超过 3200 万像素、拼图原图合计不超过 6400 万像素。
-- 视频：本机 FFmpeg 子进程、浏览器按需加载的 ffmpeg.wasm，或在线 CPU Worker；截取输出 MP4 H.264/AAC，抽音轨输出 PCM WAV。
-- 浏览器保守限制输入 64 MB / 原片 120 秒 / 单次执行 180 秒。超出可选择 CPU Worker 或桌面版。这不是已完成上限压力验证的承诺。
+- 视频：Electron 主进程 FFmpeg，Web 提交 Server 单并发队列；截取输出 MP4 H.264/AAC，抽音轨输出 PCM WAV。
 - 先处理、预览/下载，再保存为新节点；同类型单结果可替换当前节点。原资产不改写，可撤销画布操作。
 - 上传失败保留本窗口结果，可重试或下载；关闭窗口不承诺恢复未保存的 Blob。分批上传重试不会重复上传已经成功的结果。
 - 结果携带来源资产和操作参数；真实 CPU 任务与模拟任务分开显示。
@@ -75,7 +74,7 @@ Windows 目录包在 `release/win-unpacked/`，入口 `Zhilume Studio.exe`。需
 | 替换媒体 | 悬停/选中节点 → 替换；电脑或项目素材库 |
 | 撤销 / 重做 | Ctrl+Z / Ctrl+Shift+Z |
 
-连线保存引用关系，**不自动执行整条工作流**。当前支持模拟任务、真实 CPU 媒体处理及可选 Qwen 图片执行链路；GPU 实际推理尚待验收。
+连线保存引用关系，**不自动执行整条工作流**。当前支持模拟任务、真实 CPU 媒体处理及可选 Qwen 图片执行链路；上海二 A GPU 样本实测见 Server 云端验收报告。
 
 浏览器会话凭证仅存本标签页 sessionStorage；桌面会话通过 Electron safeStorage 保存。画布数据只存资产 ID，不保存文件 Base64 或临时签名地址。媒体签名刷新保留有效旧地址，避免状态轮询重置播放器。
 
@@ -91,7 +90,7 @@ Windows 目录包在 `release/win-unpacked/`，入口 `Zhilume Studio.exe`。需
 
 ## 媒体依赖与验收
 
-`npm ci` 安装 `ffmpeg-static`（当前锁定下载版本 b6.1.1）供桌面使用。`prepare:media` 将单线程 wasm 核心复制到同源 `public/ffmpeg`，Web 部署必须完整保留 `dist/ffmpeg`。运行时不依赖第三方 CDN。
+`npm ci` 安装对应平台 ffmpeg-static（b6.1.1）与共享 @zhilume/media tgz。桌面直接读取本地原文件，或下载远程素材到缓存并显示进度。输出自动同步，可重试同步而不重新编码。Web 不使用 WASM 或本地伴随服务。
 
 ```powershell
 npm test
@@ -99,6 +98,6 @@ npm test
 npx playwright test
 ```
 
-单元测试包括真正调用捆绑 FFmpeg 的 IPC 处理/取消；浏览器测试包含裁剪、拼图、切分、上传重试、WASM 音轨提取和静音视频截取。原生窗口全操作、各类大文件与上限压力测试仍需独立验收。
+单元测试包括真正调用捆绑 FFmpeg 的 IPC 处理/取消；浏览器测试包含裁剪、拼图、切分、上传重试、Server 音轨提取和静音视频截取。已实测 Windows EXE 的远程素材抽音轨、本机导入与直读截取；各类大文件、上限压力和其他操作系统仍需独立验收。
 
 FFmpeg 相关分发来源与许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

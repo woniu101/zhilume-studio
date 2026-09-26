@@ -9,5 +9,3 @@ release-*/
 .test-data/
 test-results/
 playwright-report/
-
-public/ffmpeg/

@@ -2,12 +2,15 @@ declare global {
   interface Window {
     zhilumeDesktop?: {
       media: {
-        begin(): Promise<string>;
-        append(id: string, bytes: Uint8Array): Promise<void>;
-        run(id: string, operation: string, params: { start: number; end: number }): Promise<{ filename: string; size: number }>;
-        read(id: string, offset: number): Promise<Uint8Array>;
+        rememberSource(file: File, assetId: string, base: string): Promise<void>;
+        create(assetId: string, operation: string, params: { start: number; end: number }): Promise<string>;
+        createSource(assetId: string): Promise<string>;
+        readImage(id: string): Promise<Uint8Array>;
+        run(id: string): Promise<NativeMediaResult>;
+        retrySync(id: string): Promise<NativeMediaResult>;
+        cancel(id: string): Promise<void>;
         dispose(id: string): Promise<void>;
-        onProgress(callback: (value: { id: string; progress: number }) => void): () => void;
+        onProgress(callback: (value: { id: string; phase: string; progress: number | null }) => void): () => void;
       };
       readSession: () => Promise<{ base: string; token: string } | null>;
       writeSession: (
@@ -16,6 +19,7 @@ declare global {
     };
   }
 }
+export type NativeMediaResult = { ok: true; asset: any; sourceKind: 'local' | 'cache' | 'download' } | { ok: false; error: { code: string; message: string }; canRetrySync: boolean };
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -75,6 +79,7 @@ export function uploadAsset(
   provenance?: { operation: string; sourceAssetIds: string[]; parameters: object },
 ): Promise<any> {
   return new Promise((resolve, reject) => {
+    const sourceBase = connection.base;
     const xhr = new XMLHttpRequest();
     const abort = () => xhr.abort();
     xhr.open(
@@ -89,7 +94,7 @@ export function uploadAsset(
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) progress(event.loaded / event.total);
     };
-    xhr.onload = () => {
+    xhr.onload = async () => {
       let result: any;
       try {
         result = JSON.parse(xhr.responseText);
@@ -97,7 +102,10 @@ export function uploadAsset(
         reject(new Error("上传响应无法读取"));
         return;
       }
-      if (xhr.status >= 200 && xhr.status < 300) resolve(result);
+      if (xhr.status >= 200 && xhr.status < 300) {
+        await window.zhilumeDesktop?.media.rememberSource(file, result.id, sourceBase).catch(() => {});
+        resolve(result);
+      }
       else
         reject(
           new ApiError(xhr.status, result.code, result.message || "上传失败"),
