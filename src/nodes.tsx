@@ -25,7 +25,7 @@ import {
   Scissors,
   Sparkles,
 } from "lucide-react";
-import { mediaUrl } from "./api";
+import { mediaUrl, statusLabel } from "./api";
 import { kindNames, type Kind } from "./canvas";
 export const icons = {
   text: Type,
@@ -217,7 +217,10 @@ export function MediaNode({ id, data, selected }: NodeProps) {
       {job && (
         <div className="node-status">
           <span className="badge">{job.simulation ? "模拟" : job.operation?.startsWith("image.") ? "GPU 图片" : "CPU 处理"}</span>
-          {job.stage}
+          <span title={job.error || job.stage}>{statusLabel[job.status] || job.status}{active && job.stage ? ` · ${job.stage}` : ""}</span>
+          {job.error && <span className="node-job-error" title={job.error}>{job.error}</span>}
+          {["failed", "interrupted"].includes(job.status) && <button className="nodrag nopan" aria-label="重试节点任务" onClick={() => action(id, "retry-job")}>重试</button>}
+          {active && <button className="nodrag nopan" aria-label="取消节点任务" disabled={job.status === "cancel_requested"} onClick={() => action(id, "cancel-job")}>取消</button>}
           {active && job.progress !== null
             ? ` · ${Math.round(job.progress * 100)}%`
             : ""}

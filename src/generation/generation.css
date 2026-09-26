@@ -29,3 +29,6 @@
 @media (max-width: 620px) { .generation-row { flex-wrap: wrap; } .generation-row label { flex-basis: 45%; } }
 
 .generation-settings > p { grid-column: span 2; align-self: center; }
+
+.reference-input { display: flex; align-items: center; gap: 10px; }
+.generation-settings .dimensions { align-self: end; padding-bottom: 9px; white-space: nowrap; }

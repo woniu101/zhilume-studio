@@ -1,10 +1,13 @@
 import type { Node, Edge } from "@xyflow/react";
+import type { ImageDraft } from "./generation/draft";
 export type Kind = "text" | "image" | "video" | "audio";
 export type MediaData = {
   kind: Kind;
   title: string;
   text?: string;
   html?: string;
+  textDraft?: string;
+  generationDraft?: ImageDraft;
   assetId?: string;
   lastJobId?: string;
   receivedJobIds?: string[];

@@ -25,7 +25,7 @@ async function setup(page: any, request: any) {
 
 test('generation preserves inputs across models, orders references and retries with the same request id', async ({ page, request }) => {
   await page.route('**/api/v1/image-models', route => route.fulfill({ json: models }));
-  const { assets, dialog } = await setup(page, request);
+  const { project, assets, dialog } = await setup(page, request);
   await expect(dialog.getByLabel('提示词', { exact: true })).toHaveValue('把两张图融合为水彩插画');
   await dialog.getByRole('button', { name: '多图参考', exact: true }).click();
   await dialog.getByLabel('添加参考图').selectOption(assets[1].id);
@@ -45,7 +45,8 @@ test('generation preserves inputs across models, orders references and retries w
   });
   await dialog.getByRole('button', { name: '提交生成' }).click();
   await expect(dialog.getByRole('alert')).toContainText('暂时无法提交');
-  await page.mouse.click(350, 150);
+  await expect.poll(async () => (await (await request.get(base + `/projects/${project.id}/canvas`, { headers })).json()).nodes.find((n: any) => n.id === 'image').data.generationDraft?.request?.id).toBe(bodies[0].requestId);
+  await page.reload(); await page.getByText(project.name, { exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await page.locator('.react-flow__node[data-id="image"]').click();
   await page.getByRole('button', { name: '图片生成与编辑', exact: true }).click();
@@ -85,6 +86,7 @@ test('empty nodes open on a single click, drafts survive closing, and panels rem
   await expect(panel).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await panel.getByLabel('提示词', { exact: true }).fill('晨光中的森林');
+  await panel.getByLabel('画面比例').selectOption('custom');
   await panel.getByLabel('宽度', { exact: true }).fill('1280');
   await expect(panel).toBeVisible();
   await page.mouse.click(1370, 150);
@@ -120,4 +122,46 @@ test('empty nodes open on a single click, drafts survive closing, and panels rem
   await node('image').click({ position: { x: 35, y: 30 } });
   await page.evaluate(() => document.documentElement.dataset.theme = 'light');
   await page.screenshot({ path: 'test-results/composer-image-light.png' });
+});
+
+
+test('reference upload and library drag save to the project without creating canvas nodes', async ({ page, request }) => {
+  await page.route('**/api/v1/image-models', route => route.fulfill({ json: models.map(m => ({ ...m, profiles: [] })) }));
+  const { project, assets, dialog } = await setup(page, request);
+  await request.post(base + `/projects/${project.id}/library`, { headers, data: { assetId: assets[1].id, name: '竖版参考' } });
+  await page.reload(); await page.getByText(project.name, { exact: true }).click();
+  await page.locator('.react-flow__node[data-id="image"]').click();
+  await page.getByRole('button', { name: '图片生成与编辑', exact: true }).click();
+  await dialog.getByLabel('上传参考图片').setInputFiles('e2e/fixtures/interaction-test.png');
+  await expect(dialog.locator('.generation-references li')).toHaveCount(2);
+  await page.locator('.asset-card').filter({ hasText: '竖版参考' }).dragTo(dialog.locator('textarea').first());
+  await expect(dialog.locator('.generation-references li')).toHaveCount(3);
+  await dialog.getByRole('button', { name: '将参考图 3 向前移动' }).click();
+  await dialog.getByLabel('提示词', { exact: true }).fill('重启后保留参考顺序');
+  await expect.poll(async () => (await (await request.get(base + `/projects/${project.id}/canvas`, { headers })).json()).nodes.find((n: any) => n.id === 'image').data.generationDraft?.prompt).toBe('重启后保留参考顺序');
+  await page.reload(); await page.getByText(project.name, { exact: true }).click();
+  await page.locator('.react-flow__node[data-id="image"]').click();
+  await page.getByRole('button', { name: '图片生成与编辑', exact: true }).click();
+  await expect(dialog.getByLabel('提示词', { exact: true })).toHaveValue('重启后保留参考顺序');
+  await expect(dialog.locator('.generation-references li').nth(1)).toContainText('portrait.png');
+  await expect(page.locator('.react-flow__node')).toHaveCount(2);
+  await expect(dialog.getByLabel('模型', { exact: true })).toHaveValue('qwen-image-2.1');
+  await page.screenshot({ path: 'test-results/generation-persistent-references.png' });
+});
+
+
+test('node failure exposes retry and cancellation without opening task history', async ({ page, request }) => {
+  let status = 'failed';
+  const job = () => ({ id: 'fixture-job', nodeId: 'image', status, operation: 'image.generate.v1', simulation: false, stage: status === 'failed' ? '执行失败' : '等待执行端', error: status === 'failed' ? '显存不足，请降低尺寸' : null, progress: null, createdAt: new Date().toISOString() });
+  await page.route('**/api/v1/jobs?*', route => route.fulfill({ json: [job()] }));
+  await page.route('**/api/v1/jobs/fixture-job/retry', route => { status = 'queued'; return route.fulfill({ json: job() }); });
+  await page.route('**/api/v1/jobs/fixture-job/cancel', route => { status = 'cancelled'; return route.fulfill({ json: job() }); });
+  const { dialog } = await setup(page, request);
+  await dialog.getByRole('button', { name: '收起编辑区' }).click();
+  const node = page.locator('.react-flow__node[data-id="image"]');
+  await expect(node.locator('.node-status')).toContainText('显存不足');
+  await node.getByRole('button', { name: '重试节点任务' }).click();
+  await expect(node.locator('.node-status')).toContainText('排队中');
+  await node.getByRole('button', { name: '取消节点任务' }).click();
+  await expect(node.locator('.node-status')).toContainText('已取消');
 });

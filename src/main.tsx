@@ -74,6 +74,7 @@ import {
 import { MediaNode, GroupNode, NodeContext, icons } from "./nodes";
 import { MediaPlayer } from "./media-player";
 import { ConnectionPreview, useCanvasConnection } from "./connection-interaction";
+import { initialImageDraft, type ImageDraft } from "./generation/draft";
 import { NodeComposer } from "./generation/NodeComposer";
 import { EmptyNodeEditor } from "./generation/EmptyNodeEditor";
 import { TextEditor } from "./editor";
@@ -361,7 +362,7 @@ function Workspace({
   const [composer, setComposer] = useState<{ id: string; mode: "image" | "content" } | null>(null);
   const composerNode = nodes.find(node => node.id === composer?.id);
   const composerSessions = useRef(new Map<string, ImageGenerationSession>());
-  const textDrafts = useRef(new Map<string, string>());
+
   function imageSession(id: string) {
     if (!composerSessions.current.has(id)) composerSessions.current.set(id, {});
     return composerSessions.current.get(id)!;
@@ -424,6 +425,15 @@ function Workspace({
         n.id === id ? { ...n, data: { ...n.data, ...data } } : n,
       ),
     }));
+  }
+  function saveNodeDraft(id: string, data: Record<string, unknown>) {
+    assign({ ...live.current, nodes: live.current.nodes.map(node => node.id === id ? { ...node, data: { ...node.data, ...data } } : node) });
+  }
+  function generationDraft(node: CanvasNode): ImageDraft {
+    if (node.data.generationDraft) return node.data.generationDraft;
+    const inputs = [node, ...live.current.edges.filter(e => e.target === node.id).map(e => live.current.nodes.find(n => n.id === e.source))];
+    return initialImageDraft(inputs.filter(n => n?.data.kind === "text").map(n => n?.data.text || "").join("\n"),
+      [...new Set(inputs.filter(n => n?.data.kind === "image" && n.data.assetId).map(n => String(n!.data.assetId)))]);
   }
   function mediaSize(id: string, assetId: string, width: number, height: number) {
     const old = live.current.nodes.find(node => node.id === id);
@@ -853,7 +863,7 @@ function Workspace({
           x: n.position.x + (p?.x || 0) + 40,
           y: n.position.y + (p?.y || 0) + 40,
         },
-        data: { ...n.data, lastJobId: undefined },
+        data: { ...n.data, lastJobId: undefined, generationDraft: n.data.generationDraft ? { ...structuredClone(n.data.generationDraft), request: undefined } : undefined },
       };
     });
     mutate((d) => ({
@@ -920,6 +930,11 @@ function Workspace({
         });
         await refresh();
         notify("已保存到项目素材库");
+        return;
+      }
+      if (kind === "retry-job" || kind === "cancel-job") {
+        const job = jobs.find(j => j.nodeId === id);
+        if (job) { await api(`/jobs/${job.id}/${kind === "retry-job" ? "retry" : "cancel"}`, "POST"); await refresh(); }
         return;
       }
       if (kind === "run") {
@@ -1332,8 +1347,16 @@ function Workspace({
             close={() => setComposer(null)}>
             {composer.mode === "image" ? (      <ImageGeneration key={composerNode.id} session={imageSession(composerNode.id)}
         assets={Object.values(assets)}
-        initialPrompt={[composerNode, ...live.current.edges.filter(e => e.target === composerNode.id).map(e => live.current.nodes.find(n => n.id === e.source))].filter(n => n?.data.kind === "text").map(n => n?.data.text || "").join("\n")}
-        initialReferences={[...new Set([composerNode, ...live.current.edges.filter(e => e.target === composerNode.id).map(e => live.current.nodes.find(n => n.id === e.source))].filter(n => n?.data.kind === "image" && n.data.assetId).map(n => String(n!.data.assetId)))]}
+        value={generationDraft(composerNode)}
+        update={change => {
+          const current = live.current.nodes.find(n => n.id === composerNode.id);
+          if (current) saveNodeDraft(current.id, { generationDraft: change(generationDraft(current)) });
+        }}
+        imported={async asset => {
+          setAssets(previous => ({ ...previous, [asset.id]: asset }));
+          await api(`/projects/${project.id}/library`, "POST", { assetId: asset.id });
+          await refresh();
+        }}
         close={() => setComposer(current => current?.id === composerNode.id ? null : current)}
         submit={async (operation, input, requestId) => {
           await flush();
@@ -1342,9 +1365,9 @@ function Workspace({
         }}
       />
 ) : <EmptyNodeEditor key={composerNode.id} kind={composerNode.data.kind as Kind}
-              value={textDrafts.current.get(composerNode.id) ?? String(composerNode.data.text || "")}
-              draft={value => textDrafts.current.set(composerNode.id, value)}
-              save={text => { changeNode(composerNode.id, { text, html: undefined }); setComposer(null); }}
+              value={composerNode.data.textDraft ?? String(composerNode.data.text || "")}
+              draft={value => saveNodeDraft(composerNode.id, { textDraft: value })}
+              save={text => { changeNode(composerNode.id, { text, html: undefined, textDraft: undefined }); setComposer(null); }}
               upload={() => { const id = composerNode.id; setComposer(null); void action(id, "upload"); }} />}
           </NodeComposer>}
           <div className="canvas-hint">

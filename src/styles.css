@@ -990,3 +990,7 @@ h3 {
   flex: 1;
   accent-color: var(--accent);
 }
+
+.node-status { top: calc(100% + 8px); bottom: auto; flex-wrap: wrap; width: 100%; font-size: 11px; }
+.node-status button { padding: 2px 7px; font-size: 11px; }
+.node-job-error { color: var(--danger); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

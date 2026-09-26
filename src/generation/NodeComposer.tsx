@@ -37,7 +37,8 @@ export function NodeComposer({ nodeId, title, layout, close, children }: {
   }, [nodeId, layout, viewport.x, viewport.y, viewport.zoom]);
   useEffect(() => {
     const outside = (event: Event) => {
-      const target = event.target as Node;
+      const target = event.target as HTMLElement;
+      if (target.closest?.(".asset-card")) return; // Keep the destination open while dragging a library reference.
       if (!panel.current?.contains(target) && !getNode()?.contains(target)) close();
     };
     const key = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); close(); } };
