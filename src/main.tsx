@@ -77,6 +77,7 @@ import { ConnectionPreview, useCanvasConnection } from "./connection-interaction
 import { TextEditor } from "./editor";
 import { useCanvasClipboard } from "./canvas-clipboard";
 import { AssetThumbnail, AssetInformation } from "./asset-information";
+import { ImageGeneration } from "./generation/ImageGeneration";
 import { MediaTools } from "./media-tools/MediaTools";
 import "./styles.css";
 
@@ -647,7 +648,7 @@ function Workspace({
               y: current.position.y + (parent?.position.y || 0),
             },
             {
-              title: `${kindNames[job.output.kind as Kind]} · ${job.simulation ? "模拟结果" : "处理结果"}`,
+              title: `${kindNames[job.output.kind as Kind]} · ${job.simulation ? "模拟结果" : job.operation.startsWith("image.") ? "生成结果" : "处理结果"}`,
               assetId: job.output.id,
               text,
               lastJobId: job.id,
@@ -866,7 +867,7 @@ function Workspace({
     const node = live.current.nodes.find((n) => n.id === id);
     if (!node) return;
     try {
-      if (kind === "edit" || kind === "rename" || kind === "preview" || kind === "media-tools") {
+      if (kind === "edit" || kind === "rename" || kind === "preview" || kind === "media-tools" || kind === "image-generation") {
         setDialog({ type: kind, node });
         return;
       }
@@ -1431,10 +1432,10 @@ function Workspace({
                   <strong style={{ fontSize: 12 }}>
                     {statusLabel[j.status] || j.status}
                   </strong>
-                  <span className="badge">{j.simulation ? "模拟" : "CPU 处理"}</span>
+                  <span className="badge">{j.simulation ? "模拟" : j.operation.startsWith("image.") ? "GPU 图片" : "CPU 处理"}</span>
                 </div>
                 <p>
-                  {({ "mock.text.echo.v1": "文本回显", "mock.media.copy.v1": "素材复制", "media.video.trim.v1": "视频截取", "media.audio.extract.v1": "提取音轨" } as Record<string, string>)[j.operation] || j.operation}{" "}
+                  {({ "mock.text.echo.v1": "文本回显", "mock.media.copy.v1": "素材复制", "image.generate.v1": "文生图", "image.edit.v1": "图片指令编辑", "image.reference.v1": "多图参考", "media.video.trim.v1": "视频截取", "media.audio.extract.v1": "提取音轨" } as Record<string, string>)[j.operation] || j.operation}{" "}
                   · {j.stage}
                   <br />
                   {new Date(j.createdAt).toLocaleTimeString()}
@@ -1610,6 +1611,17 @@ function Workspace({
           }}
         />
       )}
+      {dialog?.type === "image-generation" && <ImageGeneration
+        assets={Object.values(assets)}
+        initialPrompt={[dialog.node, ...live.current.edges.filter(e => e.target === dialog.node.id).map(e => live.current.nodes.find(n => n.id === e.source))].filter(n => n?.data.kind === "text").map(n => n?.data.text || "").join("\n")}
+        initialReferences={[...new Set([dialog.node, ...live.current.edges.filter(e => e.target === dialog.node.id).map(e => live.current.nodes.find(n => n.id === e.source))].filter(n => n?.data.kind === "image" && n.data.assetId).map(n => String(n!.data.assetId)))]}
+        close={() => setDialog(null)}
+        submit={async (operation, input, requestId) => {
+          await flush();
+          await api("/jobs", "POST", { requestId, projectId: project.id, nodeId: dialog.node.id, operation, input });
+          setTasksOpen(true); await refresh(); notify("已提交图片任务，结果会作为新节点返回画布");
+        }}
+      />}
       {dialog?.type === "media-tools" && assets[dialog.node.data.assetId] && <MediaTools
         asset={assets[dialog.node.data.assetId]} assets={Object.values(assets)} close={() => setDialog(null)}
         complete={(output, replace) => {

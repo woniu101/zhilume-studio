@@ -1,0 +1,21 @@
+.modal:has(.generation) { width: min(780px, calc(100vw - 48px)); }
+.generation { display: grid; gap: 14px; }
+.generation fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 12px; }
+.generation label { display: grid; gap: 7px; min-width: 0; margin: 0; font-size: 13px; }
+.generation input, .generation select, .generation textarea { width: 100%; min-width: 0; box-sizing: border-box; margin: 0; }
+.generation-row > button { height: 40px; }
+.generation textarea { resize: vertical; }
+.generation-tabs, .generation-row, .generation footer { display: flex; gap: 12px; align-items: end; }
+.generation-row label { flex: 1; }
+.generation-tabs .active { color: var(--accent); border-color: var(--accent); }
+.generation p { margin: 0; line-height: 1.6; }
+.generation-reference-heading { display: flex; justify-content: space-between; gap: 12px; }
+.generation-references { display: grid; gap: 6px; padding: 0; margin: 0; max-height: 180px; overflow: auto; }
+.generation-references li { display: flex; align-items: center; gap: 10px; min-height: 48px; }
+.generation-references img { width: 48px; height: 44px; object-fit: contain; border-radius: 5px; }
+.generation-references span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.generation-references small { display: block; color: var(--muted); }
+.generation details[open] { display: grid; gap: 12px; }
+.generation summary { cursor: pointer; margin-bottom: 10px; }
+.generation footer { justify-content: space-between; align-items: center; }
+@media (max-width: 620px) { .generation-row { flex-wrap: wrap; } .generation-row label { flex-basis: 45%; } }

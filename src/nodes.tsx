@@ -23,6 +23,7 @@ import {
   Replace,
   Plus,
   Scissors,
+  Sparkles,
 } from "lucide-react";
 import { mediaUrl } from "./api";
 import { kindNames, type Kind } from "./canvas";
@@ -158,6 +159,7 @@ export function MediaNode({ id, data, selected }: NodeProps) {
             <Play size={13} />
             模拟
           </button>
+          {(kind === "text" || kind === "image") && <button aria-label="图片生成与编辑" title="图片生成与编辑" disabled={active} onClick={() => action(id, "image-generation")}><Sparkles size={13} />生成</button>}
           {asset && (kind === "image" || kind === "video") && <button aria-label={kind === "image" ? "图片工具" : "视频工具"} title={kind === "image" ? "图片工具" : "视频工具"} onClick={() => action(id, "media-tools")}><Scissors size={13} />工具</button>}
           <button title="保存到素材库" onClick={() => action(id, "library")}>
             <Bookmark size={13} />
