@@ -1,0 +1,643 @@
+.media-player {
+  position: relative;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  user-select: none;
+  touch-action: none;
+}
+.media-player button {
+  transition:
+    background 0.15s,
+    opacity 0.15s;
+}
+.media-player audio {
+  display: none;
+}
+.media-player video {
+  display: block;
+  width: 100%;
+  max-height: none !important;
+  border-radius: 0 !important;
+  object-fit: contain;
+  background: #111;
+}
+.video-player {
+  background: #111;
+  min-height: 155px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.video-player.is-preview {
+  max-height: 66vh;
+}
+.video-player.is-preview video {
+  max-height: 66vh !important;
+}
+.video-play-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #151515b8;
+  border: 1px solid #ffffff30;
+  color: #fff;
+  backdrop-filter: blur(10px);
+  padding-left: 14px;
+}
+.video-play-overlay:hover {
+  background: #161616ed;
+}
+.player-controls {
+  position: relative;
+  padding: 0 12px 10px;
+}
+.video-player .player-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 8px 7px 4px;
+  background: linear-gradient(transparent, #000a);
+  opacity: 0;
+  transition: opacity 0.16s;
+  pointer-events: none;
+}
+.video-player:hover .player-controls,
+.video-player:focus-within .player-controls {
+  opacity: 1;
+  pointer-events: auto;
+}
+.player-control-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+}
+.media-time {
+  font-size: 10px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  opacity: 0.92;
+}
+.media-time > span {
+  opacity: 0.65;
+}
+.player-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.media-icon {
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  border-radius: 5px;
+  padding: 4px;
+  width: 25px;
+  height: 25px;
+}
+.media-icon:hover {
+  background: #8883;
+}
+.media-player input[type="range"] {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0;
+  border: 0;
+  height: 3px;
+  margin: 5px 0 7px;
+  border-radius: 10px;
+  background: linear-gradient(
+    to right,
+    var(--accent) var(--played, 0%),
+    #8887 var(--played, 0%)
+  );
+  cursor: pointer;
+  outline-offset: 4px;
+}
+.media-player input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 9px;
+  height: 9px;
+  background: currentColor;
+  border-radius: 50%;
+  border: 0;
+}
+.media-player input[type="range"]::-moz-range-thumb {
+  width: 9px;
+  height: 9px;
+  background: currentColor;
+  border-radius: 50%;
+  border: 0;
+}
+.media-seek {
+  display: block;
+  width: 100%;
+  color: #fff;
+}
+.volume-control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.volume-control > input {
+  position: absolute;
+  bottom: 29px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 64px !important;
+  box-shadow: 0 0 0 9px var(--raised);
+  background: var(--muted) !important;
+  visibility: hidden;
+  color: var(--text);
+  z-index: 4;
+}
+.volume-control:hover > input,
+.volume-control:focus-within > input {
+  visibility: visible;
+}
+.rate-label {
+  margin: 0 !important;
+  line-height: 1;
+  color: inherit !important;
+}
+.rate-label select {
+  font-size: 10px;
+  width: 38px;
+  margin: 0;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  appearance: none;
+  text-align: center;
+  cursor: pointer;
+}
+.rate-label option {
+  background: var(--panel);
+  color: var(--text);
+}
+.audio-player {
+  padding: 12px 0 0;
+  min-height: 140px;
+  background: var(--panel);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.audio-player .player-controls {
+  padding: 4px 12px 10px;
+}
+.audio-player .media-time {
+  color: var(--muted);
+  font-size: 10px;
+}
+.audio-play-button {
+  width: 27px;
+  height: 27px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  background: var(--raised);
+}
+.waveform-track {
+  position: relative;
+  margin: 2px 12px 5px;
+  height: 86px;
+  cursor: crosshair;
+  outline-offset: 4px;
+  overflow: hidden;
+}
+.waveform-track svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.waveform-rest {
+  fill: var(--muted);
+  opacity: 0.6;
+}
+.waveform-played {
+  fill: var(--accent);
+}
+.waveform-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1.5px;
+  background: var(--accent);
+  box-shadow: 0 0 5px #0003;
+  pointer-events: none;
+  max-width: 100%;
+  transform: translateX(-1px);
+}
+.waveform-fallback {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--muted);
+  border-radius: 5px;
+  background: var(--raised);
+}
+.waveform-fallback > div {
+  height: 3px;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  background: var(--accent);
+}
+.media-error {
+  position: absolute;
+  inset: 0;
+  background: var(--panel);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px;
+  font-size: 12px;
+  line-height: 1.7;
+  text-align: center;
+}
+.media-player:fullscreen {
+  height: 100%;
+  width: 100%;
+  border-radius: 0;
+  background: #080808;
+}
+.media-player:fullscreen video {
+  width: 100%;
+  height: 100%;
+  max-height: 100vh !important;
+  object-fit: contain;
+}
+.media-player:fullscreen .player-controls {
+  padding: 60px 30px 22px;
+}
+.media-player:fullscreen .media-time {
+  font-size: 14px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.node-content.audio {
+  padding: 0 !important;
+  min-height: 140px !important;
+}
+.node-replace {
+  position: absolute;
+  bottom: -39px;
+  right: 0;
+  padding: 5px 10px;
+  font-size: 11px;
+  border-radius: 7px;
+  box-shadow: 0 4px 12px #0002;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+.media-node.selected .node-replace,
+.media-node:hover .node-replace,
+.node-replace:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.node-content.image {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.node-content.image img {
+  width: 100%;
+  height: 100%;
+  max-height: 100% !important;
+  object-fit: contain;
+}
+.media-node .node-content.video {
+  height: 100%;
+  min-height: 155px;
+}
+.media-node .node-content.video .media-player {
+  min-height: 153px;
+}
+.replace-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.replace-upload {
+  min-height: 95px;
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+}
+.replace-library {
+  max-height: 320px;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 12px;
+}
+.replace-library button {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  align-items: stretch;
+  text-align: left;
+  padding: 0;
+}
+.replace-library img {
+  height: 85px;
+  object-fit: cover;
+  width: 100%;
+}
+.replace-library .asset-thumb {
+  height: 85px;
+}
+.replace-library button > span {
+  padding: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+}
+
+/* Hover actions stay inside each node. Video controls have a separate lower zone. */
+.media-node .node-replace {
+  left: 50%;
+  right: auto;
+  bottom: 16px;
+  transform: translate(-50%, 5px);
+  height: 24px;
+  padding: 2px 12px;
+  white-space: nowrap;
+  border-radius: 20px;
+  font-size: 11px;
+  background: #171717e8;
+  color: #f5f5f5;
+  border: 1px solid #ffffff35;
+  box-shadow: 0 3px 10px #0002;
+  transition:
+    opacity 0.16s,
+    transform 0.16s;
+  z-index: 7;
+}
+.media-node.kind-video .node-replace {
+  bottom: 36px;
+}
+.media-node.kind-audio .node-replace {
+  bottom: 8px;
+}
+.media-node:hover .node-replace,
+.media-node.selected .node-replace,
+.media-node .node-replace:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+.media-node.kind-audio {
+  height: 108px;
+  min-height: 108px;
+  container-type: inline-size;
+}
+.media-node.kind-audio .node-content.audio {
+  padding: 0;
+  min-height: 0 !important;
+  height: 100%;
+}
+.media-node.kind-audio .audio-player {
+  min-height: 0;
+  height: 100%;
+  padding: 8px 0 0;
+  justify-content: flex-start;
+}
+.media-node.kind-audio .waveform-track {
+  height: 64px;
+  min-height: 64px;
+  margin: 1px 10px 0;
+}
+.media-node.kind-audio .player-controls {
+  margin-top: 0;
+  padding: 1px 10px 5px;
+}
+.media-node.kind-audio .player-control-row { min-height: 26px; }
+.media-node.kind-audio .audio-play-button { width: 24px; height: 24px; padding: 4px; }
+/* Keep the middle action clear of playback controls when an audio card is narrowed. */
+@container (max-width: 280px) {
+  .media-node.kind-audio .media-time > span { display: none; }
+  .media-node.kind-audio .player-actions { gap: 2px; }
+  .media-node.kind-audio .rate-label select,
+  .media-node.kind-audio .media-icon,
+  .media-node.kind-audio .audio-play-button { width: 20px; }
+}
+.node-title {
+  overflow: visible;
+  max-width: calc(100% - 4px);
+  height: 22px;
+  top: -28px;
+  gap: 6px;
+}
+.node-title > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.node-title > .node-name-edit {
+  flex: none;
+  opacity: 0;
+  width: 20px;
+  height: 20px;
+  padding: 3px;
+  border: 0;
+  background: transparent;
+  transition: opacity 0.15s;
+}
+.media-node:hover .node-name-edit,
+.media-node.selected .node-name-edit,
+.node-name-edit:focus-visible {
+  opacity: 1;
+}
+.media-node .node-port {
+  /* React Flow measures this box to attach edges. Keep its anchor on the
+     border; the pseudo-element supplies a larger pointer target separately. */
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  display: grid;
+  place-items: center;
+  cursor: crosshair;
+  z-index: 8;
+  color: var(--text);
+}
+.media-node .node-port.react-flow__handle-left {
+  left: 0;
+  --port-offset: -14px;
+}
+.media-node .node-port.react-flow__handle-right {
+  right: 0;
+  --port-offset: 14px;
+}
+.node-port::after {
+  content: "";
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  left: 50%;
+  top: 50%;
+  /* Fixed hit area bridges the gap so moving onto the circle never flickers. */
+  transform: translate(calc(-50% + var(--port-offset)), -50%);
+}
+.node-port::before {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 1px solid var(--muted);
+  transform: translate(-50%, -50%) scale(0.2);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.18s ease-out,
+    border-color 0.18s;
+}
+.node-port > svg {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.2);
+  transition:
+    opacity 0.18s ease-out,
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.media-node:hover .node-port::before,
+.node-port:is(.connectingfrom, .connectingto, .clickconnecting)::before,
+.node-port:focus-visible::before {
+  transform: translate(calc(-50% + var(--port-offset)), -50%) scale(1);
+  opacity: 1;
+}
+.media-node:hover .node-port > svg,
+.node-port:is(.connectingfrom, .connectingto, .clickconnecting) > svg,
+.node-port:focus-visible > svg {
+  opacity: 1;
+  transform: translate(calc(-50% + var(--port-offset)), -50%) scale(1);
+}
+.node-port:hover::before,
+.node-port:is(.connectingfrom, .connectingto, .clickconnecting)::before {
+  border-color: var(--accent);
+  background: var(--raised);
+}
+.node-port:focus-visible {
+  outline: none;
+}
+.node-port:focus-visible::before {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 50%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .node-port::before,
+  .node-port > svg,
+  .media-node .node-replace {
+    transition: none;
+  }
+}
+
+.media-node.kind-video {
+  min-height: 175px;
+}
+
+/* During a connection the entire card is a drop target, including media. */
+.media-node.is-connecting .node-port::before,
+.media-node.is-connecting .node-port > svg {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(.2);
+  transition: none;
+}
+.react-flow__node-media[data-connect-drop="ready"] .media-node {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.react-flow__node-media[data-connect-drop="invalid"] .media-node {
+  border-color: #c97a7a;
+  cursor: not-allowed;
+}
+.react-flow__node-media[data-connect-drop] .node-tools,
+.react-flow__node-media[data-connect-drop] .node-replace {
+  opacity: 0;
+  pointer-events: none;
+}
+.canvas-connection-preview {
+  color: var(--muted);
+  stroke: currentColor;
+  pointer-events: none;
+}
+.canvas-connection-preview circle { fill: currentColor; }
+.canvas-connection-preview.ready { color: var(--accent); }
+.canvas-connection-preview.invalid { color: #c97a7a; }
+.canvas-connection-preview.invalid path { stroke-dasharray: 5 4; }
+/* Intrinsic media owns the node rectangle; overlays never add layout height. */
+.media-node.has-media {
+  min-height: 0;
+  border: 0;
+  box-shadow: 0 0 0 1px var(--border), 0 5px 14px #0001;
+}
+.media-node.has-media.selected { box-shadow: 0 0 0 1px var(--accent); }
+.react-flow__node-media[data-connect-drop="ready"] .media-node.has-media { box-shadow: 0 0 0 2px var(--accent); }
+.react-flow__node-media[data-connect-drop="invalid"] .media-node.has-media { box-shadow: 0 0 0 2px #c97a7a; }
+.media-node.has-media .node-content,
+.media-node.has-media .node-content.video .video-player { min-height: 0; height: 100%; padding: 0; }
+.media-node.has-media .node-content video,
+.media-node.has-media .node-content img { width: 100%; height: 100%; max-height: none; object-fit: contain; }
+.media-node.kind-video .video-play-overlay { top: 50%; width: 32px; height: 32px; padding: 7px; }
+.media-node.kind-video .video-play-overlay svg { width: 18px; height: 18px; }
+/* One compact row: play / elapsed / timeline / speed / volume / fullscreen. */
+.video-player .player-controls { display: flex; align-items: center; gap: 4px; }
+.video-player .player-control-row { display: contents; }
+.video-player .media-seek { order: 3; flex: 1; min-width: 24px; width: 0; margin: 0; }
+.video-player .player-control-row > .media-icon { order: 1; flex: none; }
+.video-player .media-time { order: 2; font-size: 10px; }
+.video-player:not(.is-preview):not(:fullscreen) .media-time > span { display: none; }
+.video-player .player-actions { order: 4; margin-left: 0; gap: 2px; }
+.video-player .media-icon { width: 20px; height: 20px; padding: 3px; }
+.video-player .rate-label select { width: 29px; padding: 3px 0; font-size: 10px; }
+.video-player .volume-control > input { bottom: 23px; }
+.video-player:fullscreen .media-icon { width: 30px; height: 30px; }

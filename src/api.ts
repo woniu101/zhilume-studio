@@ -1,0 +1,172 @@
+declare global {
+  interface Window {
+    zhilumeDesktop?: {
+      media: {
+        begin(): Promise<string>;
+        append(id: string, bytes: Uint8Array): Promise<void>;
+        run(id: string, operation: string, params: { start: number; end: number }): Promise<{ filename: string; size: number }>;
+        read(id: string, offset: number): Promise<Uint8Array>;
+        dispose(id: string): Promise<void>;
+        onProgress(callback: (value: { id: string; progress: number }) => void): () => void;
+      };
+      readSession: () => Promise<{ base: string; token: string } | null>;
+      writeSession: (
+        value: { base: string; token: string } | null,
+      ) => Promise<boolean>;
+    };
+  }
+}
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    public code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+export const connection = {
+  base:
+    localStorage.getItem("zhilume.server") ||
+    (location.protocol === "app:" ? "http://127.0.0.1:4310" : ""),
+  token: sessionStorage.getItem("zhilume.session") || "",
+};
+export async function api(
+  path: string,
+  method = "GET",
+  body?: unknown,
+): Promise<any> {
+  const binary = body instanceof Blob;
+  const response = await fetch(connection.base + "/api/v1" + path, {
+    method,
+    headers: {
+      Authorization: "Bearer " + connection.token,
+      ...(body !== undefined
+        ? {
+            "Content-Type": binary
+              ? "application/octet-stream"
+              : "application/json",
+          }
+        : {}),
+    },
+    body: body === undefined ? undefined : binary ? body : JSON.stringify(body),
+  }).catch(() => {
+    throw new ApiError(
+      0,
+      "network_error",
+      "无法连接 Server，或请求被跨域规则阻止。请检查服务是否启动，以及两端版本是否一致。",
+    );
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new ApiError(
+      response.status,
+      error.code,
+      error.message || `请求失败 (${response.status})`,
+    );
+  }
+  return response.status === 204 ? null : response.json();
+}
+export const mediaUrl = (url: string) => connection.base + url;
+export function uploadAsset(
+  file: File,
+  signal: AbortSignal,
+  progress: (value: number) => void,
+  provenance?: { operation: string; sourceAssetIds: string[]; parameters: object },
+): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const abort = () => xhr.abort();
+    xhr.open(
+      "POST",
+      connection.base +
+        "/api/v1/assets/uploads?filename=" +
+        encodeURIComponent(file.name),
+    );
+    xhr.setRequestHeader("Authorization", "Bearer " + connection.token);
+    xhr.setRequestHeader("Content-Type", "application/octet-stream");
+    if (provenance) xhr.setRequestHeader("X-Asset-Provenance", JSON.stringify(provenance));
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) progress(event.loaded / event.total);
+    };
+    xhr.onload = () => {
+      let result: any;
+      try {
+        result = JSON.parse(xhr.responseText);
+      } catch {
+        reject(new Error("上传响应无法读取"));
+        return;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(result);
+      else
+        reject(
+          new ApiError(xhr.status, result.code, result.message || "上传失败"),
+        );
+    };
+    xhr.onerror = () => reject(new Error("上传连接中断，请检查 Server"));
+    xhr.onabort = () => reject(new DOMException("上传已取消", "AbortError"));
+    xhr.onloadend = () => signal.removeEventListener("abort", abort);
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) {
+      reject(new DOMException("上传已取消", "AbortError"));
+      return;
+    }
+    xhr.send(file);
+  });
+}
+export function mergeAssets(previous: Record<string, any>, incoming: any[]) {
+  return Object.fromEntries(
+    incoming.map((asset) => {
+      const old = previous[asset.id];
+      const expires = old
+        ? Number(new URL(old.url, "http://local").searchParams.get("expires"))
+        : 0;
+      return [
+        asset.id,
+        old && expires > Date.now() / 1000 + 300
+          ? { ...asset, url: old.url, downloadUrl: old.downloadUrl }
+          : asset,
+      ];
+    }),
+  );
+}
+export async function login(base: string, token: string) {
+  const normalized = base.trim().replace(/\/$/, "");
+  if (normalized && !/^https?:\/\//.test(normalized))
+    throw new Error("请输入 http:// 或 https:// 开头的 Server 地址");
+  connection.base = normalized;
+  const result = await api("/session", "POST", { token });
+  connection.token = result.token;
+  sessionStorage.setItem("zhilume.session", result.token);
+  localStorage.setItem("zhilume.server", normalized);
+  await window.zhilumeDesktop?.writeSession({
+    base: normalized,
+    token: result.token,
+  });
+}
+export async function restoreDesktopSession() {
+  const saved = await window.zhilumeDesktop?.readSession();
+  if (saved) {
+    connection.base = saved.base;
+    connection.token = saved.token;
+  }
+}
+export function logout() {
+  connection.token = "";
+  sessionStorage.removeItem("zhilume.session");
+  void window.zhilumeDesktop?.writeSession(null);
+}
+export const sizeLabel = (bytes: number) =>
+  bytes < 1024 ** 2
+    ? `${(bytes / 1024).toFixed(1)} KB`
+    : `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+export const statusLabel: Record<string, string> = {
+  queued: "排队中",
+  assigned: "准备执行",
+  running: "执行中",
+  cancel_requested: "正在停止",
+  succeeded: "已完成",
+  failed: "失败",
+  interrupted: "已中断",
+  cancelled: "已取消",
+};

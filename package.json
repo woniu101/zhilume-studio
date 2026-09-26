@@ -1,0 +1,82 @@
+{
+  "name": "zhilume-studio",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "npm run prepare:media && vite --host 127.0.0.1",
+    "build": "npm run prepare:media && tsc -b && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "desktop": "electron .",
+    "pack": "npm run build && electron-builder --dir",
+    "test": "tsx --test tests/*.test.ts",
+    "prepare:media": "node scripts/prepare-media.mjs"
+  },
+  "dependencies": {
+    "@ffmpeg/core": "^0.12.10",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@tiptap/extension-placeholder": "^3.20.0",
+    "@tiptap/react": "^3.20.0",
+    "@tiptap/starter-kit": "^3.20.0",
+    "@xyflow/react": "^12.12.0",
+    "ffmpeg-static": "^5.3.0",
+    "lucide-react": "^0.577.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.19.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.0.0",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.0.12",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.1"
+  },
+  "build": {
+    "appId": "app.zhilume.studio",
+    "productName": "Zhilume Studio",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "electron/**",
+      "package.json",
+      "assets/**"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "electronDist": "node_modules/electron/dist",
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**"
+    ],
+    "extraResources": [
+      {
+        "from": "THIRD_PARTY_NOTICES.md",
+        "to": "THIRD_PARTY_NOTICES.md"
+      },
+      {
+        "from": "node_modules/ffmpeg-static/ffmpeg.exe.LICENSE",
+        "to": "licenses/ffmpeg.LICENSE"
+      },
+      {
+        "from": "node_modules/ffmpeg-static/ffmpeg.exe.README",
+        "to": "licenses/ffmpeg.README"
+      }
+    ]
+  },
+  "description": "Zhilume creative canvas",
+  "author": "Zhilume",
+  "engines": {
+    "node": ">=22.13.0"
+  }
+}
