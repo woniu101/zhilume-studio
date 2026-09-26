@@ -1,6 +1,6 @@
 # Zhilume Studio
 
-织镜创作画布。React + TypeScript + React Flow + Tiptap，共用 Web 和 Electron 界面。当前为 **0.7.0 初版开发**，本轮配套 Server 0.5.0 / Worker 0.4.0。需要调整时直接重构，不保留历史开发版兼容层。
+织镜创作画布。React + TypeScript + React Flow + Tiptap，共用 Web 和 Electron 界面。当前为 **0.8.0 初版开发**，本轮配套 Server 0.6.0 / Worker 0.5.0。需要调整时直接重构，不保留历史开发版兼容层。
 
 ## 图片生成与编辑
 

@@ -15,3 +15,30 @@ test('admin displays model job names, visible errors and current worker diagnost
   await expect(page.getByText('2 秒前', { exact: true })).toBeVisible();
   await page.screenshot({ path: 'test-results/admin-worker-diagnostics.png' });
 });
+
+
+test('admin connects by Worker address and secret without network-tool setup', async ({ page }) => {
+  await page.addInitScript(() => sessionStorage.setItem('zhilume.admin.session', 'e2e-local-fixture-only'));
+  let saved: any = null;
+  const secret = 'fixture-worker-secret-only';
+  await page.route('**/api/v1/workers', async route => {
+    if (route.request().method() === 'POST') {
+      saved = route.request().postDataJSON();
+      await route.fulfill({ status: 201, json: { id: 'worker-test' } });
+    } else await route.fulfill({ json: [] });
+  });
+  await page.route('**/api/v1/workers/probe', route => route.fulfill({ json: { workerName: '测试 Worker', platform: 'Linux', protocolVersion: '2.0' } }));
+  await page.goto('http://127.0.0.1:4319/admin/');
+  await page.getByRole('button', { name: '接入执行端', exact: true }).click();
+  await page.getByLabel('Worker 地址', { exact: true }).fill('http://127.0.0.1:4320');
+  await page.getByLabel('接入密钥', { exact: true }).fill(secret);
+  await expect(page.getByLabel('接入密钥')).toHaveAttribute('type', 'password');
+  await page.getByRole('button', { name: '测试连接', exact: true }).click();
+  await expect(page.getByRole('status')).toContainText('验证通过：测试 Worker');
+  await expect(page.getByText('复制接入命令', { exact: true })).toHaveCount(0);
+  await page.screenshot({ path: 'test-results/admin-worker-connect.png' });
+  await page.getByRole('button', { name: '保存连接', exact: true }).click();
+  await expect.poll(() => saved?.address).toBe('http://127.0.0.1:4320');
+  expect(saved.credential).toBe(secret);
+  await expect(page.getByLabel('Worker 地址', { exact: true })).toHaveCount(0);
+});
