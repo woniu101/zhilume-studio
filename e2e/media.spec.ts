@@ -59,6 +59,19 @@ test("media playback, waveform seek, replacement and viewport survive reload", a
     .filter({ has: page.locator("audio") });
   const wave = audio.getByRole("slider", { name: "音频波形进度" });
   await expect(audio.locator(".waveform-track")).toHaveClass(/ready/);
+  // First pointer entry into media content must start a node drag without playing or seeking.
+  for (const kind of ['audio', 'video']) {
+    const node = page.locator(`.react-flow__node[data-id="${kind}"]`);
+    const surface = kind === 'audio' ? wave : node.locator('video');
+    const before = (await node.boundingBox())!, box = (await surface.boundingBox())!;
+    const time = await node.locator(kind).evaluate((el: HTMLMediaElement) => el.currentTime);
+    await page.mouse.move(1350, 140);
+    await page.mouse.move(box.x + 35, box.y + 25); await page.mouse.down();
+    await page.mouse.move(box.x + 95, box.y + 75, { steps: 12 }); await page.mouse.up();
+    await expect.poll(async () => (await node.boundingBox())!.x).toBeGreaterThan(before.x + 50);
+    expect(await node.locator(kind).evaluate((el: HTMLMediaElement) => el.currentTime)).toBe(time);
+    expect(await node.locator(kind).evaluate((el: HTMLMediaElement) => el.paused)).toBe(true);
+  }
   await audio.getByRole("button", { name: "播放音频", exact: true }).click();
   await expect.poll(() => wave.getAttribute("aria-valuenow")).not.toBe("0");
   await audio.getByRole("button", { name: "暂停音频", exact: true }).click();

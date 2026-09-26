@@ -1,0 +1,59 @@
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useViewport } from "@xyflow/react";
+import { X } from "lucide-react";
+import "./generation.css";
+
+/** A screen-sized editor anchored to a canvas node; not part of its drag geometry. */
+export function NodeComposer({ nodeId, title, layout, close, children }: {
+  nodeId: string; title: string; layout: unknown; close: () => void; children: ReactNode;
+}) {
+  const panel = useRef<HTMLElement>(null);
+  const viewport = useViewport();
+  const [placement, setPlacement] = useState({ left: 0, top: 0, maxHeight: 400, width: 600, visible: false });
+  const getNode = () => document.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(nodeId)}"]`);
+  useLayoutEffect(() => {
+    const element = panel.current, node = getNode(), canvas = node?.closest(".canvas-area");
+    if (!element || !node || !canvas) return;
+    const position = () => {
+      const n = node.getBoundingClientRect(), c = canvas.getBoundingClientRect();
+      const width = Math.min(600, c.width - 24), bottom = Math.min(c.bottom, innerHeight) - 12;
+      const top = Math.max(c.top, 0) + 12;
+      const below = bottom - n.bottom - 14, above = n.top - 14 - top;
+      const goesBelow = below >= Math.min(element.scrollHeight, 300) || below >= above;
+      const maxHeight = Math.max(140, goesBelow ? below : above);
+      const height = Math.min(element.scrollHeight, maxHeight);
+      const next = { width, maxHeight,
+        left: Math.max(c.left + 12, Math.min(c.right - width - 12, n.left + n.width / 2 - width / 2)),
+        top: Math.max(top, Math.min(bottom - height, goesBelow ? n.bottom + 14 : n.top - height - 14)),
+        visible: n.right > c.left && n.left < c.right && n.bottom > top && n.top < bottom };
+      setPlacement(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
+    };
+    position();
+    let frame = 0;
+    const observer = new ResizeObserver(() => { cancelAnimationFrame(frame); frame = requestAnimationFrame(position); });
+    observer.observe(element); observer.observe(node); observer.observe(canvas);
+    window.addEventListener("resize", position);
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener("resize", position); };
+  }, [nodeId, layout, viewport.x, viewport.y, viewport.zoom]);
+  useEffect(() => {
+    const outside = (event: Event) => {
+      const target = event.target as Node;
+      if (!panel.current?.contains(target) && !getNode()?.contains(target)) close();
+    };
+    const key = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); close(); } };
+    document.addEventListener("pointerdown", outside, true);
+    document.addEventListener("focusin", outside);
+    document.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("pointerdown", outside, true);
+      document.removeEventListener("focusin", outside);
+      document.removeEventListener("keydown", key);
+    };
+  }, [nodeId, close]);
+  return <section ref={panel} className="node-composer nodrag nopan nowheel" role="region" aria-label={title}
+    style={{ left: placement.left, top: placement.top, width: placement.width, maxHeight: placement.maxHeight, visibility: placement.visible ? "visible" : "hidden" }}
+    onKeyDown={event => { if (event.key !== "Escape") event.stopPropagation(); }}>
+    <header><span>{title}</span><button className="icon-button" aria-label="收起编辑区" onClick={close}><X size={15} /></button></header>
+    {children}
+  </section>;
+}

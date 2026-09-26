@@ -80,6 +80,7 @@ export function MediaPlayer({
     frame = useRef<HTMLDivElement>(null),
     scrubbing = useRef(false),
     lastVolume = useRef(1);
+  const waveGesture = useRef({ x: 0, y: 0, moved: false });
   const instance = useId().replace(/:/g, "");
   const [playing, setPlaying] = useState(false),
     [time, setTime] = useState(0),
@@ -200,8 +201,8 @@ export function MediaPlayer({
   return (
     <div
       ref={frame}
-      className={`media-player ${kind}-player ${playing ? "is-playing" : "is-paused"} ${preview ? "is-preview" : ""} nodrag nopan nowheel`}
-      onPointerDown={(e) => e.stopPropagation()}
+      className={`media-player ${kind}-player ${playing ? "is-playing" : "is-paused"} ${preview ? "is-preview nodrag nopan nowheel" : "is-canvas"}`}
+      onPointerDown={preview ? (e) => e.stopPropagation() : undefined}
       onDoubleClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
     >
@@ -213,7 +214,8 @@ export function MediaPlayer({
           src={url}
           playsInline
           preload="metadata"
-          onClick={() => void toggle()}
+          onClick={preview ? () => void toggle() : undefined}
+          draggable={false}
           {...handlers}
         />
       ) : (
@@ -228,7 +230,7 @@ export function MediaPlayer({
       )}
       {kind === "video" && !playing && !error && (
         <button
-          className="video-play-overlay"
+          className="video-play-overlay nodrag nopan"
           aria-label="播放视频"
           onClick={() => void toggle()}
         >
@@ -246,20 +248,31 @@ export function MediaPlayer({
           aria-valuenow={time}
           aria-valuetext={`${formatTime(time)} / ${formatTime(duration)}`}
           onPointerDown={(event) => {
-            event.stopPropagation();
-            event.currentTarget.setPointerCapture(event.pointerId);
-            scrubbing.current = true;
-            waveSeek(event);
+            waveGesture.current = { x: event.clientX, y: event.clientY, moved: false };
+            if (preview) {
+              event.stopPropagation();
+              event.currentTarget.setPointerCapture(event.pointerId);
+              scrubbing.current = true;
+              waveSeek(event);
+            }
           }}
           onPointerMove={(event) => {
+            if (Math.hypot(event.clientX - waveGesture.current.x, event.clientY - waveGesture.current.y) > 5) waveGesture.current.moved = true;
             if (scrubbing.current) waveSeek(event);
           }}
           onPointerUp={(event) => {
             scrubbing.current = false;
-            event.currentTarget.releasePointerCapture(event.pointerId);
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
           }}
           onPointerCancel={() => {
             scrubbing.current = false;
+            waveGesture.current.moved = true;
+          }}
+          onClick={(event) => {
+            if (!preview && !waveGesture.current.moved) {
+              const bounds = event.currentTarget.getBoundingClientRect();
+              seek(((event.clientX - bounds.left) / bounds.width) * duration);
+            }
           }}
           onKeyDown={(event) => {
             event.stopPropagation();
@@ -331,7 +344,7 @@ export function MediaPlayer({
           />
         </div>
       )}
-      <div className="player-controls">
+      <div className="player-controls nodrag nopan">
         {kind === "video" && (
           <input
             className="media-seek"
@@ -434,7 +447,7 @@ export function MediaPlayer({
         <div className="media-error" role="status">
           <span>{error}</span>
           <button
-            className="media-icon"
+            className="media-icon nodrag nopan"
             aria-label="重新加载媒体"
             onClick={() => {
               setError("");

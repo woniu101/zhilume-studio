@@ -74,10 +74,12 @@ import {
 import { MediaNode, GroupNode, NodeContext, icons } from "./nodes";
 import { MediaPlayer } from "./media-player";
 import { ConnectionPreview, useCanvasConnection } from "./connection-interaction";
+import { NodeComposer } from "./generation/NodeComposer";
+import { EmptyNodeEditor } from "./generation/EmptyNodeEditor";
 import { TextEditor } from "./editor";
 import { useCanvasClipboard } from "./canvas-clipboard";
 import { AssetThumbnail, AssetInformation } from "./asset-information";
-import { ImageGeneration } from "./generation/ImageGeneration";
+import { ImageGeneration, type ImageGenerationSession } from "./generation/ImageGeneration";
 import { MediaTools } from "./media-tools/MediaTools";
 import "./styles.css";
 
@@ -356,6 +358,14 @@ function Workspace({
     [title, setTitle] = useState(project.name),
     [connectionState, setConnectionState] = useState(true),
     [historyVersion, setHistoryVersion] = useState(0);
+  const [composer, setComposer] = useState<{ id: string; mode: "image" | "content" } | null>(null);
+  const composerNode = nodes.find(node => node.id === composer?.id);
+  const composerSessions = useRef(new Map<string, ImageGenerationSession>());
+  const textDrafts = useRef(new Map<string, string>());
+  function imageSession(id: string) {
+    if (!composerSessions.current.has(id)) composerSessions.current.set(id, {});
+    return composerSessions.current.get(id)!;
+  }
   const uploadController = useRef<AbortController | null>(null);
   const canvasPointer = useRef<{ x: number; y: number } | null>(null);
   const live = useRef<Document>(emptyDocument()),
@@ -374,7 +384,7 @@ function Workspace({
     applying = useRef(new Set<string>());
   const draftKey = `zhilume.draft.${connection.base}.${project.id}`;
   useCanvasClipboard({
-    blocked: !!dialog || conflict || !loaded,
+    blocked: !!dialog || !!composer || conflict || !loaded,
     document: () => live.current,
     duplicate,
     files: (files) => { void upload(files, { position: canvasPointer.current ? flow.screenToFlowPosition(canvasPointer.current) : center() }); },
@@ -867,7 +877,12 @@ function Workspace({
     const node = live.current.nodes.find((n) => n.id === id);
     if (!node) return;
     try {
-      if (kind === "edit" || kind === "rename" || kind === "preview" || kind === "media-tools" || kind === "image-generation") {
+      if (kind === "image-generation") {
+        setComposer({ id, mode: "image" });
+        return;
+      }
+      setComposer(null);
+      if (kind === "edit" || kind === "rename" || kind === "preview" || kind === "media-tools") {
         setDialog({ type: kind, node });
         return;
       }
@@ -962,7 +977,7 @@ function Workspace({
         dialog ||
         conflict ||
         (e.target as HTMLElement).closest(
-          "input,textarea,select,video,audio,.media-player,[contenteditable=true]",
+          "input,textarea,select,video,audio,.media-player,.node-composer,[contenteditable=true]",
         )
       )
         return;
@@ -1259,7 +1274,13 @@ function Workspace({
                 live.current = { ...live.current, edges: next };
                 setEdges(next);
               }}
-              onNodeDragStart={checkpoint}
+              nodeDragThreshold={6}
+              onNodeDragStart={() => { checkpoint(); setComposer(null); }}
+              onNodeClick={(event, node) => {
+                if (node.type !== "media" || (event.target as HTMLElement).closest("button,input,select,textarea,.node-title,.react-flow__handle")) return;
+                const empty = node.data.kind === "text" ? !String(node.data.text || "").trim() : !node.data.assetId;
+                if (empty) setComposer({ id: node.id, mode: node.data.kind === "image" ? "image" : "content" });
+              }}
               onPaneContextMenu={(e) => {
                 e.preventDefault();
                 setMenu({
@@ -1306,6 +1327,26 @@ function Workspace({
             </ReactFlow>
             </ConnectionPreview.Provider>
           </NodeContext.Provider>
+          {composer && composerNode && !dialog && <NodeComposer nodeId={composerNode.id} layout={composerNode}
+            title={composer.mode === "image" ? "图片生成与编辑" : `${kindNames[composerNode.data.kind as Kind]}内容`}
+            close={() => setComposer(null)}>
+            {composer.mode === "image" ? (      <ImageGeneration key={composerNode.id} session={imageSession(composerNode.id)}
+        assets={Object.values(assets)}
+        initialPrompt={[composerNode, ...live.current.edges.filter(e => e.target === composerNode.id).map(e => live.current.nodes.find(n => n.id === e.source))].filter(n => n?.data.kind === "text").map(n => n?.data.text || "").join("\n")}
+        initialReferences={[...new Set([composerNode, ...live.current.edges.filter(e => e.target === composerNode.id).map(e => live.current.nodes.find(n => n.id === e.source))].filter(n => n?.data.kind === "image" && n.data.assetId).map(n => String(n!.data.assetId)))]}
+        close={() => setComposer(current => current?.id === composerNode.id ? null : current)}
+        submit={async (operation, input, requestId) => {
+          await flush();
+          await api("/jobs", "POST", { requestId, projectId: project.id, nodeId: composerNode.id, operation, input });
+          setTasksOpen(true); await refresh(); notify("已提交图片任务，结果会作为新节点返回画布");
+        }}
+      />
+) : <EmptyNodeEditor key={composerNode.id} kind={composerNode.data.kind as Kind}
+              value={textDrafts.current.get(composerNode.id) ?? String(composerNode.data.text || "")}
+              draft={value => textDrafts.current.set(composerNode.id, value)}
+              save={text => { changeNode(composerNode.id, { text, html: undefined }); setComposer(null); }}
+              upload={() => { const id = composerNode.id; setComposer(null); void action(id, "upload"); }} />}
+          </NodeComposer>}
           <div className="canvas-hint">
             自由画布 <span style={{ margin: "0 9px", opacity: 0.4 }}>/</span>{" "}
             {nodes.filter((n) => n.type === "media").length} 个节点
@@ -1418,7 +1459,7 @@ function Workspace({
               </button>
             </div>
             <p className="sidebar-note">
-              当前仅验证协议与文件流转，不消耗模型积分。
+              任务由连接的 Worker 执行，可在这里查看进度与结果。
             </p>
             {!jobs.length && (
               <div className="empty">
@@ -1611,17 +1652,6 @@ function Workspace({
           }}
         />
       )}
-      {dialog?.type === "image-generation" && <ImageGeneration
-        assets={Object.values(assets)}
-        initialPrompt={[dialog.node, ...live.current.edges.filter(e => e.target === dialog.node.id).map(e => live.current.nodes.find(n => n.id === e.source))].filter(n => n?.data.kind === "text").map(n => n?.data.text || "").join("\n")}
-        initialReferences={[...new Set([dialog.node, ...live.current.edges.filter(e => e.target === dialog.node.id).map(e => live.current.nodes.find(n => n.id === e.source))].filter(n => n?.data.kind === "image" && n.data.assetId).map(n => String(n!.data.assetId)))]}
-        close={() => setDialog(null)}
-        submit={async (operation, input, requestId) => {
-          await flush();
-          await api("/jobs", "POST", { requestId, projectId: project.id, nodeId: dialog.node.id, operation, input });
-          setTasksOpen(true); await refresh(); notify("已提交图片任务，结果会作为新节点返回画布");
-        }}
-      />}
       {dialog?.type === "media-tools" && assets[dialog.node.data.assetId] && <MediaTools
         asset={assets[dialog.node.data.assetId]} assets={Object.values(assets)} close={() => setDialog(null)}
         complete={(output, replace) => {

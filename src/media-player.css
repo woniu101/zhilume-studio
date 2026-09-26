@@ -641,3 +641,6 @@
 .video-player .rate-label select { width: 29px; padding: 3px 0; font-size: 10px; }
 .video-player .volume-control > input { bottom: 23px; }
 .video-player:fullscreen .media-icon { width: 30px; height: 30px; }
+
+.media-player.is-canvas, .is-canvas .waveform-track { cursor: grab; }
+.media-player.is-canvas:active, .is-canvas .waveform-track:active { cursor: grabbing; }

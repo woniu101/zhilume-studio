@@ -12,15 +12,15 @@ async function setup(page: any, request: any) {
   const assets = [];
   for (const file of ['interaction-test.png', 'portrait.png']) assets.push(await (await request.post(base + '/assets/uploads?filename=' + file, { headers: { ...headers, 'Content-Type': 'application/octet-stream' }, data: await readFile('e2e/fixtures/' + file) })).json());
   const nodes = [
-    { id: 'text', type: 'media', position: { x: 40, y: 200 }, data: { kind: 'text', title: '创作提示', text: '把两张图融合为水彩插画' } },
-    { id: 'image', type: 'media', position: { x: 400, y: 200 }, data: { kind: 'image', title: '主要参考', assetId: assets[0].id } },
+    { id: 'text', type: 'media', style: { width: 280 }, position: { x: 40, y: 200 }, data: { kind: 'text', title: '创作提示', text: '把两张图融合为水彩插画' } },
+    { id: 'image', type: 'media', style: { width: 280 }, position: { x: 400, y: 200 }, data: { kind: 'image', title: '主要参考', assetId: assets[0].id } },
   ];
-  await request.put(base + `/projects/${project.id}/canvas`, { headers, data: { schemaVersion: 1, baseRevision: 0, nodes, edges: [{ id: 'e', source: 'text', target: 'image' }] } });
+  await request.put(base + `/projects/${project.id}/canvas`, { headers, data: { schemaVersion: 1, baseRevision: 0, viewport: { x: 0, y: 0, zoom: 1 }, nodes, edges: [{ id: 'e', source: 'text', target: 'image' }] } });
   await page.addInitScript(() => sessionStorage.setItem('zhilume.session', 'e2e-local-fixture-only'));
   await page.goto('/'); await page.getByText(project.name, { exact: true }).click();
   await page.locator('.react-flow__node[data-id="image"]').click();
   await page.getByRole('button', { name: '图片生成与编辑', exact: true }).click();
-  return { project, assets, dialog: page.getByRole('dialog') };
+  return { project, assets, dialog: page.getByRole('region', { name: '图片生成与编辑' }) };
 }
 
 test('generation preserves inputs across models, orders references and retries with the same request id', async ({ page, request }) => {
@@ -45,6 +45,11 @@ test('generation preserves inputs across models, orders references and retries w
   });
   await dialog.getByRole('button', { name: '提交生成' }).click();
   await expect(dialog.getByRole('alert')).toContainText('暂时无法提交');
+  await page.mouse.click(350, 150);
+  await expect(dialog).toHaveCount(0);
+  await page.locator('.react-flow__node[data-id="image"]').click();
+  await page.getByRole('button', { name: '图片生成与编辑', exact: true }).click();
+  await expect(dialog.getByLabel('提示词', { exact: true })).toHaveValue('把两张图融合为水彩插画');
   await dialog.getByRole('button', { name: '提交生成' }).click();
   await expect(dialog).toHaveCount(0);
   expect(bodies).toHaveLength(2);
@@ -62,4 +67,57 @@ test('offline worker keeps the draft editable and blocks execution', async ({ pa
   await expect(dialog.getByRole('button', { name: '提交生成' })).toBeDisabled();
   await page.evaluate(() => document.documentElement.dataset.theme = 'light');
   await page.screenshot({ path: 'test-results/generation-light.png' });
+});
+
+
+test('empty nodes open on a single click, drafts survive closing, and panels remain inside the canvas', async ({ page, request }) => {
+  await page.route('**/api/v1/image-models', route => route.fulfill({ json: models.map(m => ({ ...m, profiles: [] })) }));
+  const project = await (await request.post(base + '/projects', { headers, data: { name: '单击编辑 ' + Date.now() } })).json();
+  const kinds = ['image', 'text', 'video', 'audio'];
+  await request.put(base + `/projects/${project.id}/canvas`, { headers, data: { schemaVersion: 1, baseRevision: 0,
+    nodes: kinds.map((kind, i) => ({ id: kind, type: 'media', style: { width: 280 }, position: { x: 40 + (i % 2) * 520, y: 65 + Math.floor(i / 2) * 540 }, data: { kind, title: kind } })),
+    edges: [], viewport: { x: 0, y: 0, zoom: 1 } } });
+  await page.addInitScript(() => sessionStorage.setItem('zhilume.session', 'e2e-local-fixture-only'));
+  await page.goto('/'); await page.getByText(project.name, { exact: true }).click();
+  const panel = page.locator('.node-composer');
+  const node = (id: string) => page.locator(`.react-flow__node[data-id="${id}"]`);
+  await node('image').click({ position: { x: 35, y: 30 } });
+  await expect(panel).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await panel.getByLabel('提示词', { exact: true }).fill('晨光中的森林');
+  await panel.getByLabel('宽度', { exact: true }).fill('1280');
+  await expect(panel).toBeVisible();
+  await page.mouse.click(1370, 150);
+  await expect(panel).toHaveCount(0);
+  await node('image').click({ position: { x: 35, y: 30 } });
+  await expect(panel.getByLabel('提示词', { exact: true })).toHaveValue('晨光中的森林');
+  await expect(panel.getByLabel('宽度', { exact: true })).toHaveValue('1280');
+  await page.screenshot({ path: 'test-results/composer-image-dark.png' });
+  await node('text').click({ position: { x: 35, y: 30 } });
+  await expect(panel).toHaveAttribute('aria-label', '文本内容');
+  await panel.getByLabel('文本内容', { exact: true }).fill('分镜草稿');
+  await page.keyboard.press('Escape');
+  await expect(panel).toHaveCount(0);
+  await node('text').click({ position: { x: 35, y: 30 } });
+  await expect(panel.getByLabel('文本内容', { exact: true })).toHaveValue('分镜草稿');
+  await panel.getByRole('button', { name: '保存文本' }).click();
+  await expect(node('text')).toContainText('分镜草稿');
+  for (const kind of ['video', 'audio']) {
+    await node(kind).click({ position: { x: 35, y: 30 } });
+    await expect(panel).toContainText('生成尚未接入');
+    const b = (await panel.boundingBox())!, c = (await page.locator('.canvas-area').boundingBox())!, n = (await node(kind).boundingBox())!;
+    expect(b.x).toBeGreaterThanOrEqual(c.x); expect(b.x + b.width).toBeLessThanOrEqual(c.x + c.width);
+    expect(b.y).toBeGreaterThanOrEqual(c.y); expect(b.y + b.height).toBeLessThanOrEqual(c.y + c.height);
+    expect(b.y + b.height < n.y || b.y > n.y + n.height).toBe(true);
+    if (kind === "video") expect(b.y + b.height).toBeLessThan(n.y);
+  }
+  await page.mouse.click(1370, 150);
+  const before = (await node('image').boundingBox())!;
+  await page.mouse.move(before.x + 35, before.y + 30); await page.mouse.down();
+  await page.mouse.move(before.x + 155, before.y + 60, { steps: 12 }); await page.mouse.up();
+  await expect(panel).toHaveCount(0);
+  expect((await node('image').boundingBox())!.x).toBeGreaterThan(before.x + 100);
+  await node('image').click({ position: { x: 35, y: 30 } });
+  await page.evaluate(() => document.documentElement.dataset.theme = 'light');
+  await page.screenshot({ path: 'test-results/composer-image-light.png' });
 });

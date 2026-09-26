@@ -178,7 +178,7 @@ export function MediaNode({ id, data, selected }: NodeProps) {
       <div className={`node-content ${kind}`}>
         {kind === "text" ? (
           <p className="text-preview">
-            {String(data.text || "双击编辑文本，记录提示词和创作想法。")}
+            {String(data.text || "点击输入文本，记录提示词和创作想法。")}
           </p>
         ) : asset ? (
           kind === "image" ? (
@@ -195,7 +195,7 @@ export function MediaNode({ id, data, selected }: NodeProps) {
         ) : (
           <div className="node-placeholder">
             <Icon size={30} strokeWidth={1} />
-            <span>添加{kindNames[kind]}素材</span>
+            <span>{kind === "image" ? "点击生成，或上传图片" : `点击添加${kindNames[kind]}内容`}</span>
             <button className="nodrag" onClick={() => action(id, "upload")}>
               <Upload size={12} />
               选择文件
@@ -216,7 +216,7 @@ export function MediaNode({ id, data, selected }: NodeProps) {
       )}
       {job && (
         <div className="node-status">
-          <span className="badge">模拟</span>
+          <span className="badge">{job.simulation ? "模拟" : job.operation?.startsWith("image.") ? "GPU 图片" : "CPU 处理"}</span>
           {job.stage}
           {active && job.progress !== null
             ? ` · ${Math.round(job.progress * 100)}%`
