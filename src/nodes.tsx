@@ -159,6 +159,7 @@ export function MediaNode({ id, data, selected }: NodeProps) {
             <Play size={13} />
             模拟
           </button>
+          {(kind === "audio" || kind === "text") && <button aria-label="语音合成" disabled={active} onClick={() => action(id, "speech-generation")}><Sparkles size={13} />语音</button>}
           {(kind === "text" || kind === "image") && <button aria-label="图片生成与编辑" title="图片生成与编辑" disabled={active} onClick={() => action(id, "image-generation")}><Sparkles size={13} />生成</button>}
           {asset && (kind === "image" || kind === "video") && <button aria-label={kind === "image" ? "图片工具" : "视频工具"} title={kind === "image" ? "图片工具" : "视频工具"} onClick={() => action(id, "media-tools")}><Scissors size={13} />工具</button>}
           <button title="保存到素材库" onClick={() => action(id, "library")}>
@@ -216,7 +217,7 @@ export function MediaNode({ id, data, selected }: NodeProps) {
       )}
       {job && (
         <div className="node-status">
-          <span className="badge">{job.simulation ? "模拟" : job.operation?.startsWith("image.") ? "GPU 图片" : "CPU 处理"}</span>
+          <span className="badge">{job.simulation ? "模拟" : job.operation === "audio.speech.v1" ? "GPU 语音" : job.operation?.startsWith("image.") ? "GPU 图片" : "CPU 处理"}</span>
           <span title={job.error || job.stage}>{statusLabel[job.status] || job.status}{active && job.stage ? ` · ${job.stage}` : ""}</span>
           {job.error && <span className="node-job-error" title={job.error}>{job.error}</span>}
           {["failed", "interrupted"].includes(job.status) && <button className="nodrag nopan" aria-label="重试节点任务" onClick={() => action(id, "retry-job")}>重试</button>}

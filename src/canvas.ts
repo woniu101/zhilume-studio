@@ -1,4 +1,5 @@
 import type { Node, Edge } from "@xyflow/react";
+import type { SpeechDraft } from "./generation/speech-draft";
 import type { ImageDraft } from "./generation/draft";
 export type Kind = "text" | "image" | "video" | "audio";
 export type MediaData = {
@@ -8,6 +9,7 @@ export type MediaData = {
   html?: string;
   textDraft?: string;
   generationDraft?: ImageDraft;
+  speechDraft?: SpeechDraft;
   assetId?: string;
   lastJobId?: string;
   receivedJobIds?: string[];

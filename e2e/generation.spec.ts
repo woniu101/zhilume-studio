@@ -109,7 +109,7 @@ test('empty nodes open on a single click, drafts survive closing, and panels rem
   await expect(node('text')).toContainText('分镜草稿');
   for (const kind of ['video', 'audio']) {
     await node(kind).click({ position: { x: 35, y: 30 } });
-    await expect(panel).toContainText('生成尚未接入');
+    await expect(panel).toContainText(kind === 'video' ? '生成尚未接入' : 'IndexTTS 2.5');
     const b = (await panel.boundingBox())!, c = (await page.locator('.canvas-area').boundingBox())!, n = (await node(kind).boundingBox())!;
     expect(b.x).toBeGreaterThanOrEqual(c.x); expect(b.x + b.width).toBeLessThanOrEqual(c.x + c.width);
     expect(b.y).toBeGreaterThanOrEqual(c.y); expect(b.y + b.height).toBeLessThanOrEqual(c.y + c.height);

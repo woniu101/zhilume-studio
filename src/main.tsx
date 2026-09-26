@@ -1,3 +1,5 @@
+import { SpeechGeneration } from "./generation/SpeechGeneration";
+import { initialSpeechDraft, type SpeechDraft } from "./generation/speech-draft";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -359,7 +361,7 @@ function Workspace({
     [title, setTitle] = useState(project.name),
     [connectionState, setConnectionState] = useState(true),
     [historyVersion, setHistoryVersion] = useState(0);
-  const [composer, setComposer] = useState<{ id: string; mode: "image" | "content" } | null>(null);
+  const [composer, setComposer] = useState<{ id: string; mode: "image" | "speech" | "content" } | null>(null);
   const composerNode = nodes.find(node => node.id === composer?.id);
   const composerSessions = useRef(new Map<string, ImageGenerationSession>());
 
@@ -428,6 +430,11 @@ function Workspace({
   }
   function saveNodeDraft(id: string, data: Record<string, unknown>) {
     assign({ ...live.current, nodes: live.current.nodes.map(node => node.id === id ? { ...node, data: { ...node.data, ...data } } : node) });
+  }
+  function speechDraft(node: CanvasNode): SpeechDraft {
+    if (node.data.speechDraft) return node.data.speechDraft;
+    const inputs = [node, ...live.current.edges.filter(e => e.target === node.id).map(e => live.current.nodes.find(n => n.id === e.source))];
+    return initialSpeechDraft(inputs.filter(n => n?.data.kind === "text").map(n => n?.data.text || "").join("\n"), String(inputs.find(n => n?.data.kind === "audio" && n.data.assetId)?.data.assetId || ""));
   }
   function generationDraft(node: CanvasNode): ImageDraft {
     if (node.data.generationDraft) return node.data.generationDraft;
@@ -668,7 +675,7 @@ function Workspace({
               y: current.position.y + (parent?.position.y || 0),
             },
             {
-              title: `${kindNames[job.output.kind as Kind]} · ${job.simulation ? "模拟结果" : job.operation.startsWith("image.") ? "生成结果" : "处理结果"}`,
+              title: `${kindNames[job.output.kind as Kind]} · ${job.simulation ? "模拟结果" : (job.operation.startsWith("image.") || job.operation === "audio.speech.v1") ? "生成结果" : "处理结果"}`,
               assetId: job.output.id,
               text,
               lastJobId: job.id,
@@ -863,7 +870,7 @@ function Workspace({
           x: n.position.x + (p?.x || 0) + 40,
           y: n.position.y + (p?.y || 0) + 40,
         },
-        data: { ...n.data, lastJobId: undefined, generationDraft: n.data.generationDraft ? { ...structuredClone(n.data.generationDraft), request: undefined } : undefined },
+        data: { ...n.data, lastJobId: undefined, speechDraft: n.data.speechDraft ? { ...structuredClone(n.data.speechDraft), request: undefined } : undefined, generationDraft: n.data.generationDraft ? { ...structuredClone(n.data.generationDraft), request: undefined } : undefined },
       };
     });
     mutate((d) => ({
@@ -887,8 +894,8 @@ function Workspace({
     const node = live.current.nodes.find((n) => n.id === id);
     if (!node) return;
     try {
-      if (kind === "image-generation") {
-        setComposer({ id, mode: "image" });
+      if (kind === "image-generation" || kind === "speech-generation") {
+        setComposer({ id, mode: kind === "speech-generation" ? "speech" : "image" });
         return;
       }
       setComposer(null);
@@ -1294,7 +1301,7 @@ function Workspace({
               onNodeClick={(event, node) => {
                 if (node.type !== "media" || (event.target as HTMLElement).closest("button,input,select,textarea,.node-title,.react-flow__handle")) return;
                 const empty = node.data.kind === "text" ? !String(node.data.text || "").trim() : !node.data.assetId;
-                if (empty || node.data.kind === "image") setComposer({ id: node.id, mode: node.data.kind === "image" ? "image" : "content" });
+                if (empty || node.data.kind === "image") setComposer({ id: node.id, mode: node.data.kind === "audio" ? "speech" : node.data.kind === "image" ? "image" : "content" });
               }}
               onPaneContextMenu={(e) => {
                 e.preventDefault();
@@ -1343,7 +1350,7 @@ function Workspace({
             </ConnectionPreview.Provider>
           </NodeContext.Provider>
           {composer && composerNode && !dialog && <NodeComposer nodeId={composerNode.id} layout={composerNode}
-            title={composer.mode === "image" ? "图片生成与编辑" : `${kindNames[composerNode.data.kind as Kind]}内容`}
+            title={composer.mode === "speech" ? "语音合成" : composer.mode === "image" ? "图片生成与编辑" : `${kindNames[composerNode.data.kind as Kind]}内容`}
             close={() => setComposer(null)}>
             {composer.mode === "image" ? (      <ImageGeneration key={composerNode.id} session={imageSession(composerNode.id)}
         assets={Object.values(assets)}
@@ -1364,7 +1371,12 @@ function Workspace({
           setTasksOpen(true); await refresh(); notify("已提交图片任务，结果会作为新节点返回画布");
         }}
       />
-) : <EmptyNodeEditor key={composerNode.id} kind={composerNode.data.kind as Kind}
+) : composer.mode === "speech" ? <SpeechGeneration key={composerNode.id} session={imageSession(composerNode.id)} assets={Object.values(assets)} value={speechDraft(composerNode)}
+              update={change => { const current = live.current.nodes.find(n => n.id === composerNode.id); if (current) saveNodeDraft(current.id, { speechDraft: change(speechDraft(current)) }); }}
+              imported={async asset => { setAssets(previous => ({ ...previous, [asset.id]: asset })); await api(`/projects/${project.id}/library`, "POST", { assetId: asset.id }); await refresh(); }}
+              close={() => setComposer(current => current?.id === composerNode.id ? null : current)}
+              submit={async (operation, input, requestId) => { await flush(); await api("/jobs", "POST", { requestId, projectId: project.id, nodeId: composerNode.id, operation, input }); setTasksOpen(true); await refresh(); notify("已提交语音任务，结果会作为新节点返回画布"); }}
+            /> : <EmptyNodeEditor key={composerNode.id} kind={composerNode.data.kind as Kind}
               value={composerNode.data.textDraft ?? String(composerNode.data.text || "")}
               draft={value => saveNodeDraft(composerNode.id, { textDraft: value })}
               save={text => { changeNode(composerNode.id, { text, html: undefined, textDraft: undefined }); setComposer(null); }}
@@ -1496,10 +1508,10 @@ function Workspace({
                   <strong style={{ fontSize: 12 }}>
                     {statusLabel[j.status] || j.status}
                   </strong>
-                  <span className="badge">{j.simulation ? "模拟" : j.operation.startsWith("image.") ? "GPU 图片" : "Server 媒体处理"}</span>
+                  <span className="badge">{j.simulation ? "模拟" : j.operation === "audio.speech.v1" ? "GPU 语音" : j.operation.startsWith("image.") ? "GPU 图片" : "Server 媒体处理"}</span>
                 </div>
                 <p>
-                  {({ "mock.text.echo.v1": "文本回显", "mock.media.copy.v1": "素材复制", "image.generate.v1": "文生图", "image.edit.v1": "图片指令编辑", "image.reference.v1": "多图参考", "media.video.trim.v1": "视频截取", "media.audio.extract.v1": "提取音轨" } as Record<string, string>)[j.operation] || j.operation}{" "}
+                  {({ "audio.speech.v1": "语音合成", "mock.text.echo.v1": "文本回显", "mock.media.copy.v1": "素材复制", "image.generate.v1": "文生图", "image.edit.v1": "图片指令编辑", "image.reference.v1": "多图参考", "media.video.trim.v1": "视频截取", "media.audio.extract.v1": "提取音轨" } as Record<string, string>)[j.operation] || j.operation}{" "}
                   · {j.stage}
                   <br />
                   {new Date(j.createdAt).toLocaleTimeString()}

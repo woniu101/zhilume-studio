@@ -57,3 +57,9 @@
 .generation .model-picker { width: auto; flex: 1; max-width: 205px; font-size: 12px; border-color: transparent; background-color: transparent; }
 .composer-toolbar .generate-submit { margin-left: auto; border-radius: 20px; min-width: 74px; }
 @media (max-width: 620px) { .generation-row { flex-wrap: wrap; } .generation-row label { flex-basis: 45%; } .ratio-grid { grid-template-columns: repeat(4, 1fr); } }
+
+.speech-reference audio { width: 100%; height: 32px; }
+.speech-upload { position: relative; display: flex !important; flex-direction: row; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer; }
+.speech-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.speech-emotions { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.speech-generation input[type=range] { padding: 0; accent-color: var(--accent); }
