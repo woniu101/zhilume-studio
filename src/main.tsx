@@ -1294,7 +1294,7 @@ function Workspace({
               onNodeClick={(event, node) => {
                 if (node.type !== "media" || (event.target as HTMLElement).closest("button,input,select,textarea,.node-title,.react-flow__handle")) return;
                 const empty = node.data.kind === "text" ? !String(node.data.text || "").trim() : !node.data.assetId;
-                if (empty) setComposer({ id: node.id, mode: node.data.kind === "image" ? "image" : "content" });
+                if (empty || node.data.kind === "image") setComposer({ id: node.id, mode: node.data.kind === "image" ? "image" : "content" });
               }}
               onPaneContextMenu={(e) => {
                 e.preventDefault();

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useViewport } from "@xyflow/react";
-import { X } from "lucide-react";
+import { X, Maximize2, Minimize2 } from "lucide-react";
 import "./generation.css";
 
 /** A screen-sized editor anchored to a canvas node; not part of its drag geometry. */
@@ -9,6 +9,7 @@ export function NodeComposer({ nodeId, title, layout, close, children }: {
 }) {
   const panel = useRef<HTMLElement>(null);
   const viewport = useViewport();
+  const [expanded, setExpanded] = useState(false);
   const [placement, setPlacement] = useState({ left: 0, top: 0, maxHeight: 400, width: 600, visible: false });
   const getNode = () => document.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(nodeId)}"]`);
   useLayoutEffect(() => {
@@ -16,8 +17,12 @@ export function NodeComposer({ nodeId, title, layout, close, children }: {
     if (!element || !node || !canvas) return;
     const position = () => {
       const n = node.getBoundingClientRect(), c = canvas.getBoundingClientRect();
-      const width = Math.min(600, c.width - 24), bottom = Math.min(c.bottom, innerHeight) - 12;
+      const width = Math.min(expanded ? 800 : 620, c.width - 24), bottom = Math.min(c.bottom, innerHeight) - 12;
       const top = Math.max(c.top, 0) + 12;
+      if (expanded) {
+        setPlacement({ width, maxHeight: bottom - top, left: c.left + (c.width - width) / 2, top, visible: true });
+        return;
+      }
       const below = bottom - n.bottom - 14, above = n.top - 14 - top;
       const goesBelow = below >= Math.min(element.scrollHeight, 300) || below >= above;
       const maxHeight = Math.max(140, goesBelow ? below : above);
@@ -34,7 +39,7 @@ export function NodeComposer({ nodeId, title, layout, close, children }: {
     observer.observe(element); observer.observe(node); observer.observe(canvas);
     window.addEventListener("resize", position);
     return () => { cancelAnimationFrame(frame); observer.disconnect(); window.removeEventListener("resize", position); };
-  }, [nodeId, layout, viewport.x, viewport.y, viewport.zoom]);
+  }, [nodeId, layout, viewport.x, viewport.y, viewport.zoom, expanded]);
   useEffect(() => {
     const outside = (event: Event) => {
       const target = event.target as HTMLElement;
@@ -54,7 +59,7 @@ export function NodeComposer({ nodeId, title, layout, close, children }: {
   return <section ref={panel} className="node-composer nodrag nopan nowheel" role="region" aria-label={title}
     style={{ left: placement.left, top: placement.top, width: placement.width, maxHeight: placement.maxHeight, visibility: placement.visible ? "visible" : "hidden" }}
     onKeyDown={event => { if (event.key !== "Escape") event.stopPropagation(); }}>
-    <header><span>{title}</span><button className="icon-button" aria-label="收起编辑区" onClick={close}><X size={15} /></button></header>
+    <header><span>{title}</span><div><button className="icon-button" aria-label={expanded ? "还原编辑区" : "展开编辑区"} onClick={() => setExpanded(v => !v)}>{expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button><button className="icon-button" aria-label="收起编辑区" onClick={close}><X size={15} /></button></div></header>
     {children}
   </section>;
 }

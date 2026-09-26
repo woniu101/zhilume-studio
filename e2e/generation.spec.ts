@@ -19,7 +19,7 @@ async function setup(page: any, request: any) {
   await page.addInitScript(() => sessionStorage.setItem('zhilume.session', 'e2e-local-fixture-only'));
   await page.goto('/'); await page.getByText(project.name, { exact: true }).click();
   await page.locator('.react-flow__node[data-id="image"]').click();
-  await page.getByRole('button', { name: '图片生成与编辑', exact: true }).click();
+  await expect(page.getByRole('region', { name: '图片生成与编辑' })).toBeVisible();
   return { project, assets, dialog: page.getByRole('region', { name: '图片生成与编辑' }) };
 }
 
@@ -28,6 +28,7 @@ test('generation preserves inputs across models, orders references and retries w
   const { project, assets, dialog } = await setup(page, request);
   await expect(dialog.getByLabel('提示词', { exact: true })).toHaveValue('把两张图融合为水彩插画');
   await dialog.getByRole('button', { name: '多图参考', exact: true }).click();
+  await dialog.getByRole('button', { name: '添加参考素材' }).click();
   await dialog.getByLabel('添加参考图').selectOption(assets[1].id);
   await dialog.getByRole('button', { name: '将参考图 2 向前移动' }).click();
   await dialog.getByLabel('模型', { exact: true }).selectOption('qwen-image-2512');
@@ -86,13 +87,15 @@ test('empty nodes open on a single click, drafts survive closing, and panels rem
   await expect(panel).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await panel.getByLabel('提示词', { exact: true }).fill('晨光中的森林');
-  await panel.getByLabel('画面比例').selectOption('custom');
+  await panel.getByRole('button', { name: '输出参数', exact: true }).click();
+  await panel.getByRole('button', { name: '自定义', exact: true }).click();
   await panel.getByLabel('宽度', { exact: true }).fill('1280');
   await expect(panel).toBeVisible();
   await page.mouse.click(1370, 150);
   await expect(panel).toHaveCount(0);
   await node('image').click({ position: { x: 35, y: 30 } });
   await expect(panel.getByLabel('提示词', { exact: true })).toHaveValue('晨光中的森林');
+  await panel.getByRole('button', { name: '输出参数', exact: true }).click();
   await expect(panel.getByLabel('宽度', { exact: true })).toHaveValue('1280');
   await page.screenshot({ path: 'test-results/composer-image-dark.png' });
   await node('text').click({ position: { x: 35, y: 30 } });
@@ -164,4 +167,61 @@ test('node failure exposes retry and cancellation without opening task history',
   await expect(node.locator('.node-status')).toContainText('排队中');
   await node.getByRole('button', { name: '取消节点任务' }).click();
   await expect(node.locator('.node-status')).toContainText('已取消');
+});
+
+test('compact composer keeps nested controls open, maps reference roles and respects live limits', async ({ page, request }) => {
+  let limit = 2;
+  await page.route('**/api/v1/image-models', route => route.fulfill({ json: models.map(m => ({ ...m, profiles: m.profiles.map(p => ({ ...p, maxReferences: m.id === 'qwen-image-2.1' ? limit : 0 })) })) }));
+  const { project, assets, dialog } = await setup(page, request);
+  await dialog.getByRole('button', { name: '添加参考素材' }).click();
+  await dialog.getByLabel('添加参考图').selectOption(assets[1].id);
+  await expect(dialog.getByRole('button', { name: '添加参考素材' })).toBeDisabled();
+  const cards = dialog.locator('.generation-references li');
+  await cards.nth(1).dragTo(cards.nth(0));
+  await expect(cards.first()).toHaveAttribute('data-reference-id', assets[1].id);
+  await expect(cards.first()).toContainText('构图基准图');
+  await dialog.getByRole('button', { name: '输出参数', exact: true }).click();
+  await dialog.getByLabel('透明背景').check();
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel('输出参数设置')).toHaveCount(0);
+  await dialog.getByRole('button', { name: '查看参考图 1' }).click();
+  await expect(dialog.getByLabel('参考图片预览')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog.getByLabel('参考图片预览')).toHaveCount(0);
+  await dialog.getByRole('button', { name: '展开编辑区' }).click();
+  await expect(dialog.getByRole('button', { name: '还原编辑区' })).toBeVisible();
+  const box = await dialog.boundingBox(); expect(box!.width).toBe(800);
+  limit = 1;
+  await dialog.getByRole('button', { name: '更多参数', exact: true }).click();
+  await dialog.getByRole('button', { name: '刷新', exact: true }).click();
+  await expect(dialog.getByRole('status')).toContainText('最多支持 1 张');
+  await expect(cards).toHaveCount(2); // Never silently drop an existing reference when capabilities shrink.
+  await expect(dialog.getByRole('button', { name: '提交生成' })).toBeDisabled();
+  await expect.poll(async () => (await (await request.get(base + `/projects/${project.id}/canvas`, { headers })).json()).nodes.find((n: any) => n.id === 'image').data.generationDraft?.format).toBe('rgba');
+  await page.screenshot({ path: 'test-results/composer-reference-expanded.png' });
+});
+
+test('image parameters are compact and adding references requests an explicit model switch', async ({ page, request }) => {
+  await page.route('**/api/v1/image-models', route => route.fulfill({ json: models }));
+  const { assets, dialog } = await setup(page, request);
+  await dialog.getByRole('button', { name: '移除参考图 1' }).click();
+  await dialog.getByRole('button', { name: '文生图', exact: true }).click();
+  await dialog.getByLabel('模型', { exact: true }).selectOption('qwen-image-2512');
+  await dialog.getByRole('button', { name: '输出参数', exact: true }).click();
+  await expect(dialog.getByLabel('透明背景')).toBeDisabled();
+  await dialog.getByRole('button', { name: '16:9', exact: true }).click();
+  await dialog.getByRole('button', { name: '1536 × 864', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: '输出参数', exact: true })).toContainText('1536 × 864');
+  await page.screenshot({ path: 'test-results/composer-output-dark.png' });
+  await page.evaluate(() => document.documentElement.dataset.theme = 'light');
+  await expect(dialog.getByRole('button', { name: '4:3', exact: true })).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await page.screenshot({ path: 'test-results/composer-output-light.png' });
+  await dialog.getByRole('button', { name: '添加参考素材' }).click();
+  await dialog.getByLabel('添加参考图').selectOption(assets[1].id);
+  await expect(dialog.getByLabel('模型', { exact: true })).toHaveValue('qwen-image-2512');
+  await dialog.getByRole('button', { name: '切换至 Qwen 2.1' }).click();
+  await expect(dialog.getByLabel('模型', { exact: true })).toHaveValue('qwen-image-2.1');
+  await expect(dialog.getByLabel('提示词', { exact: true })).toHaveValue('把两张图融合为水彩插画');
 });
