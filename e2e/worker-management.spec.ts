@@ -84,5 +84,26 @@ test('Worker management is usable without Server binding and rejects scheduling 
     const report=page.locator('pre').last(); await expect(report).toContainText('executors');
     expect(await report.textContent()).not.toContain(token);
     expect(await report.textContent()).not.toContain(worker.credential);
+    await page.getByRole('button',{name:'环境',exact:true}).click();
+    const runtime = page.getByRole('region', {name:'托管推理服务'});
+    await runtime.getByLabel('托管 Python').fill(join(root, 'missing-python'));
+    await runtime.getByLabel('托管 ComfyUI 目录').fill(root);
+    await runtime.getByRole('button',{name:'保存服务配置',exact:true}).click();
+    await expect.poll(async () => {
+      const response = await request.get(worker.address+'/management/api/overview',{headers:{Authorization:'Bearer '+token}});
+      return (await response.json()).runtimes?.[0]?.id;
+    }).toBe('comfy-main');
+    await page.getByLabel('服务部署方式',{exact:true}).selectOption('comfy-main');
+    await expect(page.getByLabel('ComfyUI 服务地址',{exact:true})).toHaveCount(0);
+    await page.getByRole('button',{name:'高级 JSON',exact:true}).click();
+    await expect(page.getByLabel('部署配置 JSON')).toContainText('"runtimeId": "comfy-main"');
+    await page.getByRole('button',{name:'返回表单',exact:true}).click();
+    await runtime.getByRole('button',{name:'检查程序路径',exact:true}).click();
+    await expect(page.getByText('Python 或 ComfyUI main.py 不存在；请先配置或安装已有环境',{exact:true})).toBeVisible();
+    await page.screenshot({path:'test-results/worker-managed-runtime-dark.png',fullPage:true});
+    await page.getByRole('button', {name:'浅色主题', exact:true}).click();
+    await page.screenshot({path:'test-results/worker-managed-runtime-light.png',fullPage:true});
+    await page.setViewportSize({width:390,height:844});
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   } finally { await stopWorker(worker.child); await rm(root,{recursive:true,force:true,maxRetries:5,retryDelay:100}); }
 });
