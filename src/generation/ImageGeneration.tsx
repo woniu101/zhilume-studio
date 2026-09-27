@@ -152,7 +152,7 @@ export function ImageGeneration({ assets, value, update, session, imported, clos
       </section>}
       {preview && <section className="reference-preview checkerboard" aria-label="参考图片预览"><img src={mediaUrl(images.find(a => a.id === preview)?.url || "")} alt="参考图大图" /><button aria-label="关闭参考预览" onClick={() => setPreview(null)}><X size={16} /></button></section>}
       <textarea className="composer-prompt" aria-label="提示词" rows={3} maxLength={12000} value={prompt} onChange={e => edit({ prompt: e.target.value })} placeholder={generate ? "描述你想生成的画面…" : "说明保留什么、修改什么，或如何组合参考图片…"} />
-      <LanguageTools value={prompt} apply={v => edit({ prompt: v })} purpose="qwen" referenceAssetIds={refs} />
+      <LanguageTools value={prompt} apply={v => edit({ prompt: v })} purpose="qwen" context={{ operation }} referenceAssetIds={refs} />
       <ExecutionTarget profile={profile} value={targetWorkerId} change={setTargetWorkerId} />
       <div className="prompt-meta"><span>{generate ? "文字描述画面" : "参考顺序与提示词一起保存"}</span><span>{prompt.length}/12000</span></div>
       {menu === "output" && <section className="composer-popover" aria-label="输出参数设置">

@@ -4,6 +4,7 @@ export const LanguageProject = createContext('');
 
 /** Suggestions remain separate from the node draft until the author applies them. */
 export function LanguageTools({ value, apply, purpose = 'general', generate = false, context, referenceAssetIds = [] }: { context?: any; referenceAssetIds?: string[]; value: string; apply: (v: string) => void; purpose?: string; generate?: boolean }) {
+  const [targetWorkerId, setTargetWorkerId] = useState('');
   const [useImages, setUseImages] = useState(false);
   const projectId = useContext(LanguageProject);
   const [models, setModels] = useState<any[]>([]), [selected, setSelected] = useState('');
@@ -14,26 +15,27 @@ export function LanguageTools({ value, apply, purpose = 'general', generate = fa
   useEffect(() => {
     if (!job || ['succeeded','failed','cancelled','interrupted'].includes(job.status)) return;
     let disposed = false;
-    const timer = setInterval(() => { api(`/jobs/${job.id}`).then(v => { if (disposed) return; setJob(v); if (v.status === 'succeeded') setSuggestion(v.outputText || ''); if (['failed','interrupted'].includes(v.status)) setError(v.error || '请求失败，原稿已保留'); }, e => { if (!disposed) setError(e.message); }); }, 800);
+    const timer = setInterval(() => { api(`/jobs/${job.id}`).then(v => { if (disposed) return; setJob(v); if (v.status === 'succeeded') setSuggestion(v.outputText || ''); if (['failed','interrupted'].includes(v.status)) { setError(v.error || '请求失败，原稿已保留'); request.current = null; } if (v.status === 'cancelled') request.current = null; }, e => { if (!disposed) setError(e.message); }); }, 800);
     return () => { disposed = true; clearInterval(timer); };
   }, [job?.id, job?.status]);
   const modelId = selected || models.find(m => m.defaults.includes(generate ? 'text' : purpose))?.profileId || '';
   const busy = submitting || (job && !['succeeded','failed','cancelled','interrupted'].includes(job.status));
   async function run() {
     const input = { profileId: modelId, text: value, purpose, context, referenceAssetIds: useImages && models.find(m => m.profileId === modelId)?.capabilities.includes('vision') ? referenceAssetIds : [] };
-    const fingerprint = JSON.stringify(input);
+    const fingerprint = JSON.stringify({input, targetWorkerId});
     if (!request.current || request.current.fingerprint !== fingerprint) request.current = { id: crypto.randomUUID(), fingerprint };
     setSubmitting(true); setOriginal(value); setSuggestion(''); setError('');
-    try { setJob(await api('/jobs', 'POST', { requestId: request.current.id, projectId, operation: generate ? 'text.generate.v1' : 'prompt.optimize.v1', input })); }
+    try { const next = await api('/jobs', 'POST', { requestId: request.current.id, projectId, ...(models.find(m=>m.profileId === modelId)?.executor === 'worker' && targetWorkerId ? {targetWorkerId} : {}), operation: generate ? 'text.generate.v1' : 'prompt.optimize.v1', input }); setJob(next); if(next.status === 'succeeded') setSuggestion(next.outputText || ''); if(['failed','cancelled','interrupted'].includes(next.status)){request.current=null;setError(next.error || '任务已结束，原稿已保留');} }
     catch (e) { setError((e as Error).message); }
     finally { setSubmitting(false); }
   }
   const selectedModel = models.find(m => m.profileId === modelId);
   return <section className="language-tools">
-    <div className="generation-row"><select aria-label="语言模型" value={modelId} onChange={e => setSelected(e.target.value)} disabled={!!busy}>
-      <option value="">选择语言模型（可选）</option>{models.map(m => <option key={m.profileId} value={m.profileId}>{m.providerName} / {m.name}{m.ready ? '' : ' · 已停用'}</option>)}
+    <div className="generation-row"><select aria-label="语言模型" value={modelId} onChange={e => {setSelected(e.target.value);setTargetWorkerId('');}} disabled={!!busy}>
+      <option value="">选择语言模型（可选）</option>{models.map(m => <option key={m.profileId} value={m.profileId}>{m.providerName} / {m.name}{m.executor === 'worker' ? ` · ${m.readyCount} 个执行端就绪` : m.ready ? '' : ' · 已停用'}</option>)}
     </select><button disabled={!!busy || !modelId || !value.trim()} onClick={() => void run()}>{generate ? '生成文本' : '优化提示词'}</button>
-    {busy && job && <button onClick={() => api(`/jobs/${job.id}/cancel`, 'POST', {}).then(setJob, e => setError(e.message))}>取消</button>}</div>
+    {busy && job && <button onClick={() => api(`/jobs/${job.id}/cancel`, 'POST', {}).then(v => {setJob(v);if(v.status === 'cancelled')request.current=null;}, e => setError(e.message))}>取消</button>}</div>
+    {selectedModel?.executor === "worker" && <ExecutionTarget profile={selectedModel} value={targetWorkerId} change={setTargetWorkerId}/>}
     {referenceAssetIds.length > 0 && <label><input type="checkbox" checked={useImages} disabled={!selectedModel?.capabilities.includes('vision')} onChange={e => setUseImages(e.target.checked)} />同时发送参考图片给语言模型（需图片理解能力）</label>}
     {!models.length && <small className="muted">可在 Server 管理台配置语言模型；不影响直接生成图片、视频和语音。</small>}
     {busy && <small role="status">{job?.stage || '提交中…'}</small>}

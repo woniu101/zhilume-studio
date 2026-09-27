@@ -17,3 +17,23 @@ test('prompt suggestion requires explicit apply and never changes original on fa
   fail=true;await prompt.fill('保留新的原稿');await panel.getByRole('button',{name:'优化提示词',exact:true}).click();
   await expect(panel.getByRole('alert')).toHaveText('测试服务失败');await expect(prompt).toHaveValue('保留新的原稿');
 });
+
+test('Worker language model exposes execution target and failed retry uses a new idempotency key',async({page,request})=>{
+  const project=await(await request.post(base+'/projects',{headers,data:{name:'语言执行端 '+Date.now()}})).json();
+  await request.put(base+`/projects/${project.id}/canvas`,{headers,data:{schemaVersion:1,baseRevision:0,viewport:{x:0,y:0,zoom:1},nodes:[{id:'image',type:'media',position:{x:400,y:100},data:{kind:'image',title:'优化测试',generationDraft:{operation:'image.generate.v1',modelId:'qwen-image-2512',profileId:'',prompt:'保持原稿',negative:'',sizeMode:'ratio',steps:'',seed:'',refs:[],format:'png',width:1024,height:1024}}}],edges:[]}});
+  await page.route('**/api/v1/language/models',r=>r.fulfill({json:[{profileId:'worker-language',providerName:'GPU Worker',name:'本地模型',executor:'worker',defaults:['qwen'],capabilities:['text'],ready:true,readyCount:2,workers:[{id:'worker-a',name:'执行端 A',ready:true},{id:'worker-b',name:'执行端 B',ready:true}]}]}));
+  const submitted:any[]=[];
+  await page.route('**/api/v1/jobs',r=>{if(r.request().method()!=='POST')return r.continue();submitted.push(r.request().postDataJSON());return r.fulfill({status:201,json:{id:'worker-job-'+submitted.length,status:'running'}});});
+  await page.route('**/api/v1/jobs/worker-job-*',r=>r.fulfill({json:{id:r.request().url().split('/').at(-1),status:'failed',error:'执行端测试失败'}}));
+  await page.addInitScript(()=>sessionStorage.setItem('zhilume.session','e2e-local-fixture-only'));
+  await page.goto('/');await page.getByText(project.name,{exact:true}).click();await page.locator('.react-flow__node[data-id="image"]').click();
+  const panel=page.getByRole('region',{name:'图片生成与编辑'});
+  await panel.getByText('执行端（默认自动分配）',{exact:true}).click();
+  await panel.getByLabel('指定执行端').selectOption('worker-b');
+  await panel.getByRole('button',{name:'优化提示词',exact:true}).click();
+  await expect(panel.getByRole('alert')).toHaveText('执行端测试失败');
+  await panel.getByRole('button',{name:'优化提示词',exact:true}).click();
+  await expect.poll(()=>submitted.length).toBe(2);
+  expect(submitted[0].targetWorkerId).toBe('worker-b');expect(submitted[1].requestId).not.toBe(submitted[0].requestId);
+  await expect(panel.getByLabel('提示词',{exact:true})).toHaveValue('保持原稿');
+});
