@@ -159,6 +159,7 @@ export function MediaNode({ id, data, selected }: NodeProps) {
             <Play size={13} />
             模拟
           </button>
+          {kind !== "audio" && <button aria-label="视频生成与参考编辑" disabled={active} onClick={() => action(id, "video-generation")}><Sparkles size={13} />视频</button>}
           {(kind === "audio" || kind === "text") && <button aria-label="语音合成" disabled={active} onClick={() => action(id, "speech-generation")}><Sparkles size={13} />语音</button>}
           {(kind === "text" || kind === "image") && <button aria-label="图片生成与编辑" title="图片生成与编辑" disabled={active} onClick={() => action(id, "image-generation")}><Sparkles size={13} />生成</button>}
           {asset && (kind === "image" || kind === "video") && <button aria-label={kind === "image" ? "图片工具" : "视频工具"} title={kind === "image" ? "图片工具" : "视频工具"} onClick={() => action(id, "media-tools")}><Scissors size={13} />工具</button>}
