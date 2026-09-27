@@ -1,0 +1,46 @@
+import {test,expect} from '@playwright/test';
+const base='http://127.0.0.1:4319/api/v1',headers={Authorization:'Bearer e2e-local-fixture-only'};
+test('explicit workflow binds new text while batch keeps existing inputs',async({page,request})=>{
+ const project=await(await request.post(base+'/projects',{headers,data:{name:'任务流程 '+Date.now()}})).json();
+ await request.put(base+`/projects/${project.id}/canvas`,{headers,data:{schemaVersion:1,baseRevision:0,nodes:[{id:'one',type:'media',position:{x:400,y:100},data:{kind:'text',title:'上游文本',text:'写一段场景'}},{id:'two',type:'media',position:{x:800,y:100},data:{kind:'text',title:'下游文本',text:'已有原文'}}],edges:[{id:'edge',source:'one',target:'two'}]}});
+ await page.route('**/api/v1/models',r=>r.fulfill({json:{image:[],video:[],speech:[],language:[{profileId:'fixture-language',providerName:'测试',name:'文本模型'}]}}));
+ let body:any;
+ await page.route('**/api/v1/job-groups',r=>{body=r.request().postDataJSON();return r.fulfill({status:201,json:{jobs:[]}});});
+ await page.addInitScript(()=>sessionStorage.setItem('zhilume.session','e2e-local-fixture-only'));
+ await page.goto('/');await page.getByText(project.name,{exact:true}).click();
+ await page.locator('.react-flow__node[data-id="one"]').click();
+ await page.locator('.react-flow__node[data-id="two"]').click({modifiers:['Control']});
+ await page.getByRole('button',{name:'批量 / 流程',exact:true}).click();
+ const modal=page.getByRole('dialog');
+ await expect(modal.getByRole('button',{name:'提交 2 个任务'})).toBeVisible();
+ await modal.getByLabel('文本节点使用的语言模型').selectOption('fixture-language');
+ await modal.getByRole('button',{name:'运行流程',exact:true}).click();
+ await modal.getByLabel('上游文本 → 下游文本').selectOption('text');
+ await page.screenshot({path:'test-results/explicit-workflow.png'});
+ await modal.getByRole('button',{name:'提交 2 个任务'}).click();
+ await expect.poll(()=>body?.mode).toBe('workflow');
+ expect(body.tasks[1].bindings).toEqual([{from:'one',target:'text'}]);
+ expect(body.tasks[1].input.text).toBe('已有原文');
+ await page.getByRole('button',{name:'批量 / 流程',exact:true}).click();
+ await modal.getByLabel('文本节点使用的语言模型').selectOption('fixture-language');
+ await modal.getByRole('button',{name:'提交 2 个任务'}).click();
+ await expect.poll(()=>body?.mode).toBe('batch');
+ expect(body.tasks.every((t:any)=>t.bindings.length===0)).toBe(true);
+});
+
+test('Server language settings never echo saved secrets',async({page})=>{
+ await page.addInitScript(()=>sessionStorage.setItem('zhilume.admin.session','e2e-local-fixture-only'));
+ await page.goto('http://127.0.0.1:4319/admin/');
+ await page.getByRole('button',{name:'语言模型',exact:true}).click();
+ const name='语言服务 '+Date.now();
+ await page.getByLabel('名称',{exact:true}).fill(name);
+ await page.getByLabel('API 根地址').fill('https://provider.invalid/v1');
+ await page.getByLabel('API Key').fill('browser-fixture-not-a-real-key');
+ await page.getByLabel('模型标识').fill('fixture-model');
+ await page.getByRole('button',{name:'保存配置'}).click();
+ await expect(page.getByText(name,{exact:true})).toBeVisible();
+ await expect(page.getByLabel('API Key')).toHaveValue('');
+ await page.locator('article').filter({has:page.getByText(name,{exact:true})}).getByRole('button',{name:'编辑',exact:true}).click();
+ await expect(page.getByLabel('API Key')).toHaveValue('');
+ await page.screenshot({path:'test-results/language-provider-settings.png'});
+});

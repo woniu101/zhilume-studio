@@ -1,3 +1,4 @@
+import { LanguageTools, ExecutionTarget } from './LanguageTools';
 import { useEffect, useRef, useState } from "react";
 import { Plus, X, ArrowUp, GripVertical, Settings2, ChevronDown, ImagePlus } from "lucide-react";
 import { api, mediaUrl, uploadAsset } from "../api";
@@ -14,8 +15,9 @@ export type ImageGenerationSession = { inFlight?: Promise<void> };
 export function ImageGeneration({ assets, value, update, session, imported, close, submit }: {
   assets: Asset[]; value: ImageDraft; update: (change: (draft: ImageDraft) => ImageDraft) => void;
   session: ImageGenerationSession; imported: (asset: Asset) => Promise<void>; close: () => void;
-  submit: (operation: string, input: object, requestId: string) => Promise<void>;
+  submit: (operation: string, input: object, requestId: string, targetWorkerId?: string) => Promise<void>;
 }) {
+  const [targetWorkerId, setTargetWorkerId] = useState('');
   const { operation, modelId, profileId, prompt, negative, refs, format, width, height, steps, seed } = value;
   const edit = (patch: Partial<ImageDraft>) => update(d => ({ ...d, ...patch }));
   const setRefs = (change: (refs: string[]) => string[]) => update(d => ({ ...d, refs: change(d.refs) }));
@@ -53,6 +55,7 @@ export function ImageGeneration({ assets, value, update, session, imported, clos
   }
   const model = models.find(m => m.id === modelId) || { id: modelId, name: modelId, operations: [], formats: [], profiles: [], referenceLimits: { maximum: 0 } };
   const profile = profileId ? model.profiles.find(p => p.profileId === profileId) : model.profiles[0];
+  useEffect(() => { if (!value.profileId && profile) update(d => ({ ...d, profileId: profile.profileId })); }, [value.profileId, profile?.profileId]);
   const referenceModel = models.find(m => m.id === "qwen-image-2.1");
   const referenceProfile = modelId === "qwen-image-2.1" ? profile : referenceModel?.profiles[0];
   const referenceLimit = Math.min(referenceModel?.referenceLimits.maximum ?? 10, referenceProfile?.maxReferences ?? 10);
@@ -67,7 +70,7 @@ export function ImageGeneration({ assets, value, update, session, imported, clos
     : !generate && (refs.length < (operation === "image.edit.v1" ? 1 : 2) || (operation === "image.edit.v1" && refs.length !== 1)) ? count
     : profile && refs.length > profile.maxReferences ? `此执行配置最多支持 ${profile.maxReferences} 张参考图。`
     : !model.formats.includes(format) ? "此模型不支持 RGBA，请选择 PNG。"
-    : !profile ? "暂无已启用此模型的在线 Worker，可先准备提示词与参考图。"
+    : !profile ? "暂无此模型的已登记规格，可先准备提示词与参考图。"
     : !profile.operations.includes(operation) ? "此执行配置未启用当前操作。"
     : !profile.formats.includes(format) ? "此执行配置不支持所选格式。"
     : !prompt.trim() ? "请输入提示词。"
@@ -89,11 +92,11 @@ export function ImageGeneration({ assets, value, update, session, imported, clos
     setBusy(true); setError("");
     const draft = { modelId, profileId: profile.profileId, workflowRevision: profile.workflowRevision, prompt, negativePrompt: negative,
       referenceAssetIds: refs, outputFormat: format, steps: steps ? +steps : profile.defaultSteps, ...(generate ? { width, height } : {}) };
-    const fingerprint = JSON.stringify({ operation, ...draft, seed });
+    const fingerprint = JSON.stringify({ operation, ...draft, seed, targetWorkerId });
     const request = value.request?.fingerprint === fingerprint ? value.request : { fingerprint, id: crypto.randomUUID(), seed: seed ? +seed : crypto.getRandomValues(new Uint32Array(1))[0] };
     edit({ request });
     try {
-      session.inFlight = submit(operation, { ...draft, seed: request.seed }, request.id);
+      session.inFlight = submit(operation, { ...draft, seed: request.seed }, request.id, targetWorkerId);
       await session.inFlight;
       update(d => ({ ...d, request: undefined }));
       close();
@@ -149,6 +152,8 @@ export function ImageGeneration({ assets, value, update, session, imported, clos
       </section>}
       {preview && <section className="reference-preview checkerboard" aria-label="参考图片预览"><img src={mediaUrl(images.find(a => a.id === preview)?.url || "")} alt="参考图大图" /><button aria-label="关闭参考预览" onClick={() => setPreview(null)}><X size={16} /></button></section>}
       <textarea className="composer-prompt" aria-label="提示词" rows={3} maxLength={12000} value={prompt} onChange={e => edit({ prompt: e.target.value })} placeholder={generate ? "描述你想生成的画面…" : "说明保留什么、修改什么，或如何组合参考图片…"} />
+      <LanguageTools value={prompt} apply={v => edit({ prompt: v })} purpose="qwen" referenceAssetIds={refs} />
+      <ExecutionTarget profile={profile} value={targetWorkerId} change={setTargetWorkerId} />
       <div className="prompt-meta"><span>{generate ? "文字描述画面" : "参考顺序与提示词一起保存"}</span><span>{prompt.length}/12000</span></div>
       {menu === "output" && <section className="composer-popover" aria-label="输出参数设置">
         {generate ? <>
@@ -159,7 +164,7 @@ export function ImageGeneration({ assets, value, update, session, imported, clos
         <label className="transparency-option"><input type="checkbox" aria-label="透明背景" checked={format === "rgba"} disabled={!model.formats.includes("rgba") || (!!profile && !profile.formats.includes("rgba"))} onChange={e => edit({ format: e.target.checked ? "rgba" : "png" })} /><span>透明背景 <small>{model.formats.includes("rgba") ? "保留模型返回的透明通道；请在提示词中说明透明背景" : "需要 Qwen Image 2.1"}</small></span></label>
       </section>}
       {menu === "advanced" && <section className="composer-popover" aria-label="更多参数设置">
-        <div className="generation-row"><label>执行配置<select aria-label="执行配置" value={profile?.profileId || ""} onChange={e => edit({ profileId: e.target.value })}><option value="" disabled>暂无在线配置</option>{model.profiles.map(p => <option key={p.profileId} value={p.profileId}>默认 {p.defaultSteps} 步 · 上限 {p.maxSize}px · {p.maxReferences} 张参考图</option>)}</select></label><button onClick={refresh} disabled={loading}>{loading ? "刷新中…" : "刷新"}</button></div>
+        <div className="generation-row"><label>执行配置<select aria-label="执行配置" value={profile?.profileId || ""} onChange={e => edit({ profileId: e.target.value })}><option value="" disabled>暂无已登记规格</option>{model.profiles.map(p => <option key={p.profileId} value={p.profileId}>默认 {p.defaultSteps} 步 · 上限 {p.maxSize}px · {p.maxReferences} 张参考图</option>)}</select></label><button onClick={refresh} disabled={loading}>{loading ? "刷新中…" : "刷新"}</button></div>
         <label>反向提示词<textarea aria-label="反向提示词" rows={2} maxLength={12000} value={negative} onChange={e => edit({ negative: e.target.value })} /></label>
         <div className="generation-row"><label>步数<input aria-label="步数" type="number" min={1} max={100} value={steps} placeholder={String(profile?.defaultSteps || "默认")} onChange={e => edit({ steps: e.target.value })} /></label><label>随机种子<input aria-label="随机种子" type="number" min={0} value={seed} placeholder="自动随机" onChange={e => edit({ seed: e.target.value })} /></label></div>
       </section>}

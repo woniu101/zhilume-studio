@@ -1,0 +1,19 @@
+import { test, expect } from '@playwright/test';
+const base='http://127.0.0.1:4319/api/v1',headers={Authorization:'Bearer e2e-local-fixture-only'};
+test('prompt suggestion requires explicit apply and never changes original on failure',async({page,request})=>{
+  const project=await(await request.post(base+'/projects',{headers,data:{name:'提示词审阅 '+Date.now()}})).json();
+  await request.put(base+`/projects/${project.id}/canvas`,{headers,data:{schemaVersion:1,baseRevision:0,viewport:{x:0,y:0,zoom:1},nodes:[{id:'image',type:'media',position:{x:400,y:100},data:{kind:'image',title:'优化测试',generationDraft:{operation:'image.generate.v1',modelId:'qwen-image-2512',profileId:'',prompt:'原始描述',negative:'',sizeMode:'ratio',refs:[],format:'png',width:1024,height:1024,steps:'',seed:''}}}],edges:[]}});
+  await page.route('**/api/v1/language/models',r=>r.fulfill({json:[{profileId:'language-fixture',providerName:'测试服务',name:'文本模型',defaults:['qwen'],capabilities:['text'],ready:true}]}));
+  let fail=false;
+  await page.route('**/api/v1/jobs',r=>r.request().method()==='POST'?r.fulfill({status:201,json:{id:'suggestion-job',status:'running',stage:'处理中'}}):r.continue());
+  await page.route('**/api/v1/jobs/suggestion-job',r=>r.fulfill({json:fail?{id:'suggestion-job',status:'failed',error:'测试服务失败'}:{id:'suggestion-job',status:'succeeded',outputText:'更清晰的建议描述'}}));
+  await page.addInitScript(()=>sessionStorage.setItem('zhilume.session','e2e-local-fixture-only'));
+  await page.goto('/');await page.getByText(project.name,{exact:true}).click();await page.locator('.react-flow__node[data-id="image"]').click();
+  const panel=page.getByRole('region',{name:'图片生成与编辑'}),prompt=panel.getByLabel('提示词',{exact:true});
+  await panel.getByRole('button',{name:'优化提示词',exact:true}).click();
+  await expect(panel.getByLabel('建议稿')).toHaveValue('更清晰的建议描述');await expect(prompt).toHaveValue('原始描述');
+  await page.screenshot({path:'test-results/prompt-suggestion-review.png'});
+  await panel.getByRole('button',{name:'应用建议'}).click();await expect(prompt).toHaveValue('更清晰的建议描述');
+  fail=true;await prompt.fill('保留新的原稿');await panel.getByRole('button',{name:'优化提示词',exact:true}).click();
+  await expect(panel.getByRole('alert')).toHaveText('测试服务失败');await expect(prompt).toHaveValue('保留新的原稿');
+});

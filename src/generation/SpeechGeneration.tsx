@@ -1,3 +1,4 @@
+import { LanguageTools, ExecutionTarget } from './LanguageTools';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Settings2, Upload } from 'lucide-react';
 import { api, mediaUrl, uploadAsset } from '../api';
@@ -11,13 +12,15 @@ const model = catalog.speechModels[0];
 const modes = [['follow','跟随音色参考'],['reference','情绪参考音频'],['vector','手动情绪'],['text','文字描述情绪']];
 export function SpeechGeneration({ assets, value, update, session, imported, close, submit }: {
   assets: Asset[]; value: SpeechDraft; update: (change: (d: SpeechDraft) => SpeechDraft) => void; session: ImageGenerationSession;
-  imported: (a: Asset) => Promise<void>; close: () => void; submit: (operation: string, input: object, requestId: string) => Promise<void>;
+  imported: (a: Asset) => Promise<void>; close: () => void; submit: (operation: string, input: object, requestId: string, targetWorkerId?: string) => Promise<void>;
 }) {
+  const [targetWorkerId, setTargetWorkerId] = useState('');
   const [profiles, setProfiles] = useState<Profile[]>([]), [error, setError] = useState(''), [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState(false), [busy, setBusy] = useState(!!session.inFlight), [uploading, setUploading] = useState('');
   const controller = useRef<AbortController | null>(null);
   const profile = value.profileId ? profiles.find(p => p.profileId === value.profileId) : profiles[0];
   const edit = (patch: Partial<SpeechDraft>) => update(d => ({ ...d, ...patch }));
+  useEffect(() => { if (!value.profileId && profile) update(d => ({ ...d, profileId: profile.profileId })); }, [value.profileId, profile?.profileId]);
   const audio = assets.filter(a => a.kind === 'audio');
   async function refresh() {
     setLoading(true);
@@ -74,9 +77,9 @@ export function SpeechGeneration({ assets, value, update, session, imported, clo
   async function run() {
     if (invalid || !profile || busy || session.inFlight) return;
     const input = { ...value, request: undefined, profileId: profile.profileId, workflowRevision: profile.workflowRevision };
-    const fingerprint = JSON.stringify(input), request = value.request?.fingerprint === fingerprint ? value.request : { fingerprint, id: crypto.randomUUID() };
+    const fingerprint = JSON.stringify({input,targetWorkerId}), request = value.request?.fingerprint === fingerprint ? value.request : { fingerprint, id: crypto.randomUUID() };
     edit({ request }); setBusy(true); setError('');
-    try { session.inFlight = submit('audio.speech.v1', input, request.id); await session.inFlight; update(d => ({ ...d, request: undefined })); close(); }
+    try { session.inFlight = submit('audio.speech.v1', input, request.id, targetWorkerId); await session.inFlight; update(d => ({ ...d, request: undefined })); close(); }
     catch (e) { setError((e as Error).message); }
     finally { session.inFlight = undefined; setBusy(false); }
   }
@@ -90,8 +93,9 @@ export function SpeechGeneration({ assets, value, update, session, imported, clo
       {value.emotionMode === 'text' && <label>情绪描述<textarea aria-label="情绪描述" maxLength={500} value={value.emotionText} onChange={e => edit({ emotionText: e.target.value })} placeholder="例如：轻声安慰，温暖而平静" /><small className="muted">需要执行端启用额外的文字情绪模型。</small></label>}
       {value.emotionMode === 'vector' && <div className="speech-emotions">{model.emotionLabels.map((label,i) => <label key={label}>{label} {value.emotionVector[i].toFixed(2)}<input aria-label={`${label}强度`} type="range" min={0} max={1} step={.05} value={value.emotionVector[i]} onChange={e => edit({ emotionVector: value.emotionVector.map((n,j) => i === j ? +e.target.value : n) })} /></label>)}</div>}
       {value.emotionMode !== 'follow' && <label>情绪影响 {value.emotionAlpha.toFixed(2)}<input aria-label="情绪影响" type="range" min={0} max={1} step={.05} value={value.emotionAlpha} onChange={e => edit({ emotionAlpha: +e.target.value })} /></label>}
+      <ExecutionTarget profile={profile} value={targetWorkerId} change={setTargetWorkerId} />
       {settings && <section className="composer-popover" aria-label="语音参数设置"><div className="generation-row"><label>语言<select aria-label="语言" value={value.language} onChange={e => edit({ language: e.target.value })}>{[['ZH','中文'],['EN','英语'],['JA','日语'],['ES','西班牙语'],['AR','阿拉伯语']].map(([id,name]) => <option key={id} value={id} disabled={!!profile && !profile.languages.includes(id)}>{name}</option>)}</select></label><label>语速 {value.speed.toFixed(2)}×<input aria-label="语速" type="range" min={.5} max={2} step={.05} value={value.speed} onChange={e => edit({ speed: +e.target.value })} /></label></div>
-        <div className="generation-row"><label>执行配置<select aria-label="语音执行配置" value={profile?.profileId || ''} onChange={e => edit({ profileId: e.target.value })}><option value="" disabled>暂无在线配置</option>{profiles.map(p => <option key={p.profileId} value={p.profileId}>{p.maxTextCharacters} 字 · {p.emotionModes.includes('text') ? '含文字情绪' : '基础情绪'} · {p.profileId.slice(0,8)}</option>)}</select></label><button onClick={refresh} disabled={loading}>{loading ? '刷新中…' : '刷新配置'}</button></div>
+        <div className="generation-row"><label>执行配置<select aria-label="语音执行配置" value={profile?.profileId || ''} onChange={e => edit({ profileId: e.target.value })}><option value="" disabled>暂无已登记规格</option>{profiles.map(p => <option key={p.profileId} value={p.profileId}>{p.maxTextCharacters} 字 · {p.emotionModes.includes('text') ? '含文字情绪' : '基础情绪'} · {p.profileId.slice(0,8)}</option>)}</select></label><button onClick={refresh} disabled={loading}>{loading ? '刷新中…' : '刷新配置'}</button></div>
         <p className="muted">输出 WAV · 24kHz · 单声道。语速改变实际时长，不承诺精确秒数。</p></section>}
     </fieldset>
     {uploading && <p className="muted">参考音频上传中 {uploading}</p>}{error && <p className="error" role="alert">{error}</p>}{invalid && <p className="composer-validation" role="status">{invalid}</p>}

@@ -45,7 +45,7 @@ test('H3 single-click composer preserves modes and drafts, exact duration and re
 test('offline H3 remains editable, theme and focus dismissal',async({page,request})=>{
   const {panel}=await setup(page,request,false);
   await panel.getByLabel('视频提示词').fill('保留草稿');
-  await expect(panel.getByRole('status')).toContainText('暂无已启用 H3');
+  await expect(panel.getByRole('status')).toContainText('暂无已登记的 H3 规格');
   await expect(panel.getByRole('button',{name:'生成视频'})).toBeDisabled();
   await page.evaluate(()=>document.documentElement.dataset.theme='light');
   await page.screenshot({path:'test-results/video-generation-light.png'});

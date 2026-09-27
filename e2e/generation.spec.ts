@@ -61,11 +61,11 @@ test('generation preserves inputs across models, orders references and retries w
   expect(bodies[0].input.width).toBeUndefined();
 });
 
-test('offline worker keeps the draft editable and blocks execution', async ({ page, request }) => {
+test('unknown model specification keeps draft editable and blocks submission', async ({ page, request }) => {
   await page.route('**/api/v1/image-models', route => route.fulfill({ json: models.map(m => ({ ...m, ready: false, profiles: [] })) }));
   const { dialog } = await setup(page, request);
   await dialog.getByLabel('提示词', { exact: true }).fill('保留角色，更换背景');
-  await expect(dialog.getByRole('status')).toContainText('暂无已启用此模型');
+  await expect(dialog.getByRole('status')).toContainText('暂无此模型的已登记规格');
   await expect(dialog.getByRole('button', { name: '提交生成' })).toBeDisabled();
   await page.evaluate(() => document.documentElement.dataset.theme = 'light');
   await page.screenshot({ path: 'test-results/generation-light.png' });

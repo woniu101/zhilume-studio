@@ -78,3 +78,10 @@
 .video-reference-list .generation-row { flex-wrap: wrap; }
 .video-reference-list select { font-size: 11px; }
 @media (max-width: 640px) { .video-reference-list { grid-template-columns: 1fr; } }
+
+.language-tools { border-top:1px solid var(--border); padding-top:10px; margin-top:8px; }
+.language-tools select { min-width:0; flex:1; }
+.suggestion-review { display:grid; gap:8px; margin-top:10px; }
+.suggestion-review textarea { min-height:80px; }
+.execution-target { display:flex; justify-content:space-between; gap:12px; font-size:12px; margin:8px 0; }
+.execution-target summary { cursor:pointer; }

@@ -1,3 +1,4 @@
+import { LanguageTools, ExecutionTarget } from './LanguageTools';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Settings2, Upload, X } from 'lucide-react';
 import { api, mediaUrl, uploadAsset } from '../api';
@@ -8,8 +9,9 @@ type Profile = { profileId:string; workflowRevision:string; sizes:number[][]; fr
 const modes = [['text','文生视频'],['first','首帧'],['last','尾帧'],['first-last','首尾帧'],['reference','全能参考']];
 export function VideoGeneration({ assets,value,update,session,imported,close,submit }: {
   assets:Asset[]; value:VideoDraft; update:(f:(d:VideoDraft)=>VideoDraft)=>void; session:ImageGenerationSession;
-  imported:(a:Asset)=>Promise<void>; close:()=>void; submit:(operation:string,input:object,requestId:string)=>Promise<void>;
+  imported:(a:Asset)=>Promise<void>; close:()=>void; submit:(operation:string,input:object,requestId:string,targetWorkerId?:string)=>Promise<void>;
 }) {
+  const [targetWorkerId, setTargetWorkerId] = useState('');
   const [models,setModels] = useState<any[]>([]), [error,setError] = useState(''), [settings,setSettings] = useState(false);
   const [busy,setBusy] = useState(!!session.inFlight), [uploading,setUploading] = useState(''), [refresh,setRefresh] = useState(0);
   const controller = useRef<AbortController | null>(null);
@@ -18,13 +20,14 @@ export function VideoGeneration({ assets,value,update,session,imported,close,sub
   const edit = (patch:Partial<VideoDraft>) => update(d => ({ ...d,...patch }));
   const profiles:Profile[] = models.find(m => m.id === value.modelId)?.profiles || [];
   const profile = value.profileId ? profiles.find(p => p.profileId === value.profileId) : profiles[0];
+  useEffect(() => { if (!value.profileId && profile) update(d => ({ ...d, profileId: profile.profileId })); }, [value.profileId, profile?.profileId]);
   const refs = videoReferences(value);
   const referenceError = refs.length > 12 ? '参考最多 12 份，请移除多余参考；已有草稿会保留。' : refs.some(r => !assets.some(a => a.id === r.assetId && a.kind === (['first','last'].includes(r.role) ? 'image' : r.role))) ? '请选择对应角色的参考素材。'
     : value.mode === 'reference' && !refs.length ? '至少添加一份参考素材。'
     : value.mode === 'reference' && value.references.some(r => r.role !== 'image' && (r.frames < 56 || r.frames > value.frames || r.frames % 17 !== 5 || !Number.isFinite(r.start) || r.start < 0 || r.start > 86400)) ? '参考片段至少 56 帧，按 17 帧递增，且不超过输出时长。'
     : ['video','audio'].some(kind => value.mode === 'reference' && value.references.filter(r => r.role === kind).reduce((n,r) => n+r.frames/24,0) > 15) ? '视频、音频参考总时长各不超过 15 秒。' : '';
   const invalid = referenceError || (!value.prompt.trim() ? '描述你希望生成的画面、动作和声音。' : '') || (value.prompt.length > 20000 ? '提示词超过 20000 字。' : '') ||
-    (!profile ? '暂无已启用 H3 的在线 Worker，可先保存创作草稿。' : '') ||
+    (!profile ? '暂无已登记的 H3 规格，可先保存创作草稿。' : '') ||
     (profile && (!profile.frames.includes(value.frames) || !profile.sizes.some(s => s[0] === value.width && s[1] === value.height)) ? '当前尺寸或时长不在执行配置中，请在视频参数中选择。' : '') ||
     (profile && ['image','video','audio'].some(k => refs.filter(r => r.role === k).length > profile.referenceLimits[k]) ? '参考数量超过当前执行配置。' : '');
   function add(asset:Asset, slot?:'firstFrameId'|'lastFrameId') {
@@ -57,9 +60,9 @@ export function VideoGeneration({ assets,value,update,session,imported,close,sub
   async function run() {
     if (invalid || !profile || busy || session.inFlight) return;
     const input={ modelId:value.modelId,profileId:profile.profileId,workflowRevision:profile.workflowRevision,mode:value.mode,prompt:value.prompt,width:value.width,height:value.height,frames:value.frames,steps:value.steps,seed:value.seed,includeAudio:value.includeAudio,references:refs };
-    const fingerprint=JSON.stringify(input), request=value.request?.fingerprint===fingerprint ? value.request : { id:crypto.randomUUID(),fingerprint };
+    const fingerprint=JSON.stringify({input,targetWorkerId}), request=value.request?.fingerprint===fingerprint ? value.request : { id:crypto.randomUUID(),fingerprint };
     edit({ request }); setBusy(true); setError('');
-    try { session.inFlight=submit('video.generate.v1',input,request.id); await session.inFlight; update(d=>({...d,request:undefined})); close(); }
+    try { session.inFlight=submit('video.generate.v1',input,request.id,targetWorkerId); await session.inFlight; update(d=>({...d,request:undefined})); close(); }
     catch(e) { setError((e as Error).message); } finally { session.inFlight=undefined; setBusy(false); }
   }
   const counts:Record<string,number>={image:0,video:0,audio:0};
@@ -79,13 +82,15 @@ export function VideoGeneration({ assets,value,update,session,imported,close,sub
         </article>;
       })}</div><small className="muted">参考重生成：保留你指定的内容关系，不是逐帧修改原视频。</small></>}
       <textarea className="composer-prompt" aria-label="视频提示词" maxLength={20000} value={value.prompt} onChange={e=>edit({prompt:e.target.value})} placeholder="描述主体、动作、镜头和声音；有参考时用标签说明各素材的用途…"/>
+      <LanguageTools value={value.prompt} apply={v => edit({ prompt: v })} purpose="h3" context={{ mode: value.mode, duration: value.frames / 24, includeAudio: value.includeAudio }} referenceAssetIds={refs.filter(r => ["first", "last", "image"].includes(r.role)).map(r => r.assetId)} />
+      <ExecutionTarget profile={profile} value={targetWorkerId} change={setTargetWorkerId} />
       <div className="prompt-meta"><span>原始提示词直接提交</span><span>{value.prompt.length}/20000</span></div>
       {settings && <section className="composer-popover" aria-label="视频参数设置">
         <div className="generation-row"><label>尺寸<select aria-label="视频尺寸" value={`${value.width}x${value.height}`} onChange={e=>{const [width,height]=e.target.value.split('x').map(Number);edit({width,height});}}>{[...[ [value.width,value.height] ],...(profile?.sizes||[])].filter((s,i,a)=>a.findIndex(v=>v[0]===s[0]&&v[1]===s[1])===i).map(s=><option key={s.join('x')} value={s.join('x')}>{s[0]} × {s[1]}</option>)}</select></label>
           <label>实际时长<select aria-label="视频时长" value={value.frames} onChange={e=>edit({frames:+e.target.value})}>{[...new Set([value.frames,...(profile?.frames||[124,192,243,345])])].map(n=><option key={n} value={n}>{frameLabel(n)}</option>)}</select></label></div>
         <div className="generation-row"><label>采样步数<input aria-label="视频步数" type="number" min={1} max={50} value={value.steps} onChange={e=>edit({steps:Math.floor(Math.min(50,Math.max(1,+e.target.value)))})}/></label><label>随机种子<input aria-label="视频种子" type="number" min={0} max={Number.MAX_SAFE_INTEGER} value={value.seed} onChange={e=>edit({seed:Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(+e.target.value)))})}/></label></div>
         <label className="transparency-option"><input type="checkbox" checked={value.includeAudio} onChange={e=>edit({includeAudio:e.target.checked})}/>保留生成音频</label><small className="muted">H3 联合生成音画；关闭仅导出静音，不代表减少模型推理。</small>
-        <label>执行配置<select aria-label="视频执行配置" value={profile?.profileId||''} onChange={e=>edit({profileId:e.target.value})}><option value="" disabled>暂无在线配置</option>{profiles.map(p=><option key={p.profileId} value={p.profileId}>{p.profileId.slice(0,8)} · 图片 {p.referenceLimits.image} / 视频 {p.referenceLimits.video} / 音频 {p.referenceLimits.audio}</option>)}</select></label><button onClick={()=>setRefresh(n=>n+1)}>刷新配置</button>
+        <label>执行配置<select aria-label="视频执行配置" value={profile?.profileId||''} onChange={e=>edit({profileId:e.target.value})}><option value="" disabled>暂无已登记规格</option>{profiles.map(p=><option key={p.profileId} value={p.profileId}>{p.profileId.slice(0,8)} · 图片 {p.referenceLimits.image} / 视频 {p.referenceLimits.video} / 音频 {p.referenceLimits.audio}</option>)}</select></label><button onClick={()=>setRefresh(n=>n+1)}>刷新配置</button>
         <small className="muted">24 FPS · MP4；参考片段在执行端核对真实长度后才提交推理。</small>
       </section>}
     </fieldset>

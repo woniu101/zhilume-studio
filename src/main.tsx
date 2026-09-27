@@ -1,3 +1,5 @@
+import { TaskGroupRunner } from './generation/TaskGroupRunner';
+import { LanguageProject } from './generation/LanguageTools';
 import { VideoGeneration } from "./generation/VideoGeneration";
 import { initialVideoDraft, type VideoDraft, type VideoReference } from "./generation/video-draft";
 import { SpeechGeneration } from "./generation/SpeechGeneration";
@@ -1086,13 +1088,12 @@ function Workspace({
           <button
             className="primary"
             onClick={() => {
-              const n = selected.find((n) => n.type === "media");
-              if (n) void action(n.id, "run");
-              else notify("请先选中一个有内容的节点");
+              if (selected.some(n => n.type === 'media')) setDialog({ type: 'task-group' });
+              else notify('请先选中需要执行的节点');
             }}
           >
             <PlayIcon />
-            运行模拟
+            批量 / 流程
           </button>
         </div>
       </header>
@@ -1357,7 +1358,7 @@ function Workspace({
             </ReactFlow>
             </ConnectionPreview.Provider>
           </NodeContext.Provider>
-          {composer && composerNode && !dialog && <NodeComposer nodeId={composerNode.id} layout={composerNode}
+          {composer && composerNode && !dialog && <LanguageProject.Provider value={project.id}><NodeComposer nodeId={composerNode.id} layout={composerNode}
             title={composer.mode === "video" ? "视频生成与参考编辑" : composer.mode === "speech" ? "语音合成" : composer.mode === "image" ? "图片生成与编辑" : `${kindNames[composerNode.data.kind as Kind]}内容`}
             close={() => setComposer(null)}>
             {composer.mode === "image" ? (      <ImageGeneration key={composerNode.id} session={imageSession(composerNode.id)}
@@ -1373,9 +1374,9 @@ function Workspace({
           await refresh();
         }}
         close={() => setComposer(current => current?.id === composerNode.id ? null : current)}
-        submit={async (operation, input, requestId) => {
+        submit={async (operation, input, requestId, targetWorkerId) => {
           await flush();
-          await api("/jobs", "POST", { requestId, projectId: project.id, nodeId: composerNode.id, operation, input });
+          await api("/jobs", "POST", { requestId, projectId: project.id, nodeId: composerNode.id, operation, input, targetWorkerId });
           setTasksOpen(true); await refresh(); notify("已提交图片任务，结果会作为新节点返回画布");
         }}
       />
@@ -1383,18 +1384,18 @@ function Workspace({
               update={change => { const current = live.current.nodes.find(n => n.id === composerNode.id); if (current) saveNodeDraft(current.id, { videoDraft: change(videoDraft(current)) }); }}
               imported={async asset => { setAssets(previous => ({ ...previous, [asset.id]: asset })); await api(`/projects/${project.id}/library`, "POST", { assetId: asset.id }); await refresh(); }}
               close={() => setComposer(current => current?.id === composerNode.id ? null : current)}
-              submit={async (operation, input, requestId) => { await flush(); await api("/jobs", "POST", { requestId, projectId: project.id, nodeId: composerNode.id, operation, input }); setTasksOpen(true); await refresh(); notify("已提交视频任务，结果会作为新节点返回画布"); }}
+              submit={async (operation, input, requestId, targetWorkerId) => { await flush(); await api("/jobs", "POST", { requestId, projectId: project.id, nodeId: composerNode.id, operation, input, targetWorkerId }); setTasksOpen(true); await refresh(); notify("已提交视频任务，结果会作为新节点返回画布"); }}
             /> : composer.mode === "speech" ? <SpeechGeneration key={composerNode.id} session={imageSession(composerNode.id)} assets={Object.values(assets)} value={speechDraft(composerNode)}
               update={change => { const current = live.current.nodes.find(n => n.id === composerNode.id); if (current) saveNodeDraft(current.id, { speechDraft: change(speechDraft(current)) }); }}
               imported={async asset => { setAssets(previous => ({ ...previous, [asset.id]: asset })); await api(`/projects/${project.id}/library`, "POST", { assetId: asset.id }); await refresh(); }}
               close={() => setComposer(current => current?.id === composerNode.id ? null : current)}
-              submit={async (operation, input, requestId) => { await flush(); await api("/jobs", "POST", { requestId, projectId: project.id, nodeId: composerNode.id, operation, input }); setTasksOpen(true); await refresh(); notify("已提交语音任务，结果会作为新节点返回画布"); }}
+              submit={async (operation, input, requestId, targetWorkerId) => { await flush(); await api("/jobs", "POST", { requestId, projectId: project.id, nodeId: composerNode.id, operation, input, targetWorkerId }); setTasksOpen(true); await refresh(); notify("已提交语音任务，结果会作为新节点返回画布"); }}
             /> : <EmptyNodeEditor key={composerNode.id} kind={composerNode.data.kind as Kind}
               value={composerNode.data.textDraft ?? String(composerNode.data.text || "")}
               draft={value => saveNodeDraft(composerNode.id, { textDraft: value })}
               save={text => { changeNode(composerNode.id, { text, html: undefined, textDraft: undefined }); setComposer(null); }}
               upload={() => { const id = composerNode.id; setComposer(null); void action(id, "upload"); }} />}
-          </NodeComposer>}
+          </NodeComposer></LanguageProject.Provider>}
           <div className="canvas-hint">
             自由画布 <span style={{ margin: "0 9px", opacity: 0.4 }}>/</span>{" "}
             {nodes.filter((n) => n.type === "media").length} 个节点
@@ -1537,6 +1538,7 @@ function Workspace({
                     "failed",
                     "cancelled",
                     "interrupted",
+                    "blocked",
                   ].includes(j.status) && (
                     <button
                       disabled={j.status === "cancel_requested"}
@@ -1549,7 +1551,7 @@ function Workspace({
                       取消任务
                     </button>
                   )}
-                  {["failed", "interrupted"].includes(j.status) && (
+                  {["failed", "interrupted", "blocked", "cancelled"].includes(j.status) && (
                     <button
                       onClick={() =>
                         void api(`/jobs/${j.id}/retry`, "POST")
@@ -1938,6 +1940,7 @@ function Workspace({
           </button>
         </Modal>
       )}
+      {dialog?.type === 'task-group' && <Modal title="提交节点任务" close={() => setDialog(null)}><TaskGroupRunner nodes={selected.filter(n => n.type === 'media')} edges={live.current.edges} projectId={project.id} prepare={n => n.data.kind === 'image' ? generationDraft(n) : n.data.kind === 'video' ? videoDraft(n) : n.data.kind === 'audio' ? speechDraft(n) : {}} flush={flush} done={() => { setDialog(null); setTasksOpen(true); void refresh(); }} /></Modal>}
       {dialog?.type === "help" && (
         <Modal title="画布使用指南" close={() => setDialog(null)}>
           <div className="prose">
@@ -1952,7 +1955,7 @@ function Workspace({
               取消分组，Delete 删除，Ctrl+Z 撤销。
             </p>
             <p>
-              “运行模拟”只执行文本回显或原文件复制，结果作为新节点追加。连线目前记录引用关系，尚不自动执行整条流程。
+              普通连线引用已有素材。“批量提交”独立运行选中节点；“运行流程”需明确绑定上游新结果，成功归档后再执行下游。
             </p>
             <p>
               本地草稿用于断线恢复。画布 JSON 导出包含布局和素材
