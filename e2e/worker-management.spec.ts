@@ -1,10 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { startWorker, stopWorker } from '../../zhilume-server/tests/worker-helper';
 
 test('Worker management is usable without Server binding and rejects scheduling authority', async ({ page, request }) => {
+  // This scenario visits all management panels and both themes before the
+  // installation preview; individual API/UI assertions retain their timeouts.
+  test.setTimeout(90000);
   const root = await mkdtemp(join(tmpdir(), 'zhilume-admin-browser-'));
   const worker = await startWorker(root);
   try {
@@ -103,6 +106,30 @@ test('Worker management is usable without Server binding and rejects scheduling 
     await page.screenshot({path:'test-results/worker-managed-runtime-dark.png',fullPage:true});
     await page.getByRole('button', {name:'浅色主题', exact:true}).click();
     await page.screenshot({path:'test-results/worker-managed-runtime-light.png',fullPage:true});
+    await page.getByText('安装独立标准环境（Linux / WSL2）',{exact:true}).click();
+    await expect(page.getByText('本版标准依赖方案尚待干净环境 GPU 验收；已有环境托管实测不代表此安装方案已验证。',{exact:true})).toBeVisible();
+    await page.getByLabel('新安装目录',{exact:true}).fill(join(tmpdir(),'zhilume-plan-'+Date.now()));
+    await page.getByLabel('已有 Python 绝对路径',{exact:true}).fill(process.env.ZHILUME_TEST_PYTHON || resolve('../zhilume-worker/.venv/'+(process.platform==='win32'?'Scripts/python.exe':'bin/python')));
+    await page.getByRole('button',{name:'查看安装计划',exact:true}).click();
+    await expect(page.getByText('环境：comfy-cu128-py312 · Python 3.12 · CUDA 12.8',{exact:true})).toBeVisible();
+    await expect(page.getByRole('button',{name:'执行依赖安装',exact:true})).toBeEnabled();
+    // Preview only: browsing the plan must not start dependency installation.
+    const planned=await request.get(worker.address+'/management/api/operations',{headers:{Authorization:'Bearer '+token}});
+    expect((await planned.json()).some((o:any)=>o.name.endsWith(':install'))).toBe(false);
+    await page.getByLabel('新安装目录',{exact:true}).fill(join(tmpdir(),'zhilume-changed-plan-'+Date.now()));
+    await expect(page.getByRole('button',{name:'执行依赖安装',exact:true})).toHaveCount(0);
+    await page.route('**/management/api/install', async route => {
+      const response = await route.fetch();
+      await new Promise(r => setTimeout(r, 800));
+      await route.fulfill({response});
+    });
+    const delayedPlan = page.waitForResponse(r => r.url().endsWith('/management/api/install'));
+    await page.getByRole('button',{name:'查看安装计划',exact:true}).click();
+    await page.getByLabel('新安装目录',{exact:true}).fill(join(tmpdir(),'zhilume-newer-plan-'+Date.now()));
+    await delayedPlan;
+    await expect(page.getByRole('button',{name:'执行依赖安装',exact:true})).toHaveCount(0);
+    await page.unroute('**/management/api/install');
+    await page.screenshot({path:'test-results/worker-standard-install-plan.png',fullPage:true});
     await page.setViewportSize({width:390,height:844});
     expect(await page.evaluate(()=>document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   } finally { await stopWorker(worker.child); await rm(root,{recursive:true,force:true,maxRetries:5,retryDelay:100}); }
