@@ -1,5 +1,8 @@
-.modal:has(.media-tool) { width: min(780px, 94vw); max-height: 90vh; overflow: auto; }
-.media-tool { display: grid; gap: 14px; }
+.modal:has(.media-tool) { width: min(780px, 94vw); max-height: 90vh; overflow: hidden; display:flex; flex-direction:column; }
+.modal:has(.media-tool) > header { flex-shrink:0; }
+.media-tool { display:flex; flex-direction:column; min-height:0; gap:14px; }
+.media-tool > fieldset { overflow:auto; min-height:0; overscroll-behavior:contain; }
+.media-tool > footer { flex-shrink:0; }
 .media-tool fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 12px; }
 .media-tool-tabs, .media-collage-options { display: flex; gap: 10px; }
 .media-collage-options label { flex: 1; min-width: 0; display: grid; gap: 5px; }

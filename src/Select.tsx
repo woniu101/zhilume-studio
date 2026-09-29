@@ -1,3 +1,4 @@
+import { useOverlay } from './overlays';
 import { Children, isValidElement, useEffect, useId, useRef, useState, type ReactNode, type SelectHTMLAttributes, type ChangeEvent } from 'react';
 import { createPortal } from 'react-dom';
 import './select.css';
@@ -16,6 +17,7 @@ export function Select({ children, value, onChange, className = '', disabled, 'a
   const trigger = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false), [index, setIndex] = useState(0);
   const [rect, setRect] = useState({ left: 0, top: 0, width: 240, maxHeight: 280 });
+  useOverlay(open, () => setOpen(false), trigger, menu);
   const choose = (i: number) => {
     const option = options[i]; if (!option || option.disabled) return;
     onChange?.({ target: { value: option.value }, currentTarget: { value: option.value } } as ChangeEvent<HTMLSelectElement>);
@@ -31,9 +33,8 @@ export function Select({ children, value, onChange, className = '', disabled, 'a
     };
     position(); setIndex(Math.max(0, options.findIndex(o => o.value === current)));
     const frame = requestAnimationFrame(() => menu.current?.focus());
-    const outside = (e: PointerEvent) => { if (!trigger.current?.contains(e.target as Node) && !menu.current?.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener('pointerdown', outside); window.addEventListener('resize', position); window.addEventListener('scroll', position, true);
-    return () => { cancelAnimationFrame(frame); document.removeEventListener('pointerdown', outside); window.removeEventListener('resize', position); window.removeEventListener('scroll', position, true); };
+    window.addEventListener('resize', position); window.addEventListener('scroll', position, true);
+    return () => { cancelAnimationFrame(frame); window.removeEventListener('resize', position); window.removeEventListener('scroll', position, true); };
   }, [open]);
   useEffect(() => { menu.current?.querySelector(`[data-index="${index}"]`)?.scrollIntoView({ block: 'nearest' }); }, [index]);
   useEffect(() => { if (disabled) setOpen(false); }, [disabled]);

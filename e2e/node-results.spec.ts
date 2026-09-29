@@ -46,8 +46,9 @@ test('in-place results, persistent versions, keyboard themes, empty type switch 
   await expect(panel.getByRole('combobox',{name:'节点内容类型'})).toBeDisabled();
   await expect.poll(async()=>(await(await request.get(base+`/projects/${project.id}/canvas`,{headers})).json()).nodes[0].data.assetId).toBe(asset.id);
   await page.reload();await page.getByText(project.name,{exact:true}).click();await node.click();
-  await panel.locator('.node-versions > summary').click();await expect(panel.locator('.node-versions article')).toHaveCount(1);
-  await panel.getByRole('button',{name:'另存为新节点'}).click();await expect(page.locator('.react-flow__node-media')).toHaveCount(2);
+  await panel.getByRole('button',{name:/历史版本/}).click();await expect(page.locator('.node-versions article')).toHaveCount(1);
+  await page.getByRole('button',{name:'另存为新节点'}).click();await expect(page.locator('.react-flow__node-media')).toHaveCount(2);
+  await page.keyboard.press('Escape');
   await panel.getByRole('button',{name:'收起编辑区'}).click();await node.click();
   await page.getByRole('button',{name:'视频生成与参考编辑',exact:true}).click();
   await expect(page.locator('.kind-video')).toHaveCount(1);await expect(page.locator('.kind-image')).toHaveCount(2);

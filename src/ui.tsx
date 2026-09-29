@@ -1,3 +1,4 @@
+import { hasOverlays } from './overlays';
 import brandIcon from "../assets/icon.svg";
 import { useEffect, useState, type ReactNode } from "react";
 import { Monitor, Moon, Sun, X } from "lucide-react";
@@ -62,7 +63,7 @@ export function Modal({
 }) {
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape" && !hasOverlays()) close();
     };
     document.addEventListener("keydown", key);
     return () => document.removeEventListener("keydown", key);

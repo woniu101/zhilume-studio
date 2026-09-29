@@ -1,3 +1,4 @@
+import { FloatingPanel, PanelAction } from '../overlays';
 import { initialProfile } from './model-selection';
 import { Select } from '../Select';
 import { useNodeTask } from './NodeTask';
@@ -18,6 +19,7 @@ export function SpeechGeneration({ assets, value, update, session, imported, sub
   imported: (a: Asset) => Promise<void>; close: () => void; submit: (operation: string, input: object, requestId: string, targetWorkerId?: string) => Promise<void>;
 }) {
   const taskRunning = useNodeTask();
+  const settingsAnchor = useRef<HTMLButtonElement>(null);
   const targetWorkerId = value.targetWorkerId || '';
   const setTargetWorkerId = (id: string) => update(d => ({ ...d, targetWorkerId: id }));
   const [profiles, setProfiles] = useState<Profile[]>([]), [error, setError] = useState(''), [loading, setLoading] = useState(false);
@@ -69,14 +71,14 @@ export function SpeechGeneration({ assets, value, update, session, imported, sub
       if (audio.some(a => a.id === id)) edit({ [role]: { assetId: id, start: 0, end: 10 } });
       else if (e.dataTransfer.files[0]) void upload(role, e.dataTransfer.files[0]); else setError('此区域仅接受音频参考');
     }}>
-      <div className="generation-row"><label>{title}<Select aria-label={title} value={clip.assetId} onChange={e => edit({ [role]: { assetId: e.target.value, start: 0, end: 10 } })}><option value="">选择项目音频…</option>{audio.map(a => <option key={a.id} value={a.id}>{a.filename}</option>)}</Select></label>
+      <PanelAction title={title} label={`${title} · ${asset?.filename || "选择或上传"}`} wide disabled={busy || !!uploading}><div className="generation-row"><label>{title}<Select aria-label={title} value={clip.assetId} onChange={e => edit({ [role]: { assetId: e.target.value, start: 0, end: 10 } })}><option value="">选择项目音频…</option>{audio.map(a => <option key={a.id} value={a.id}>{a.filename}</option>)}</Select></label>
         <label className="speech-upload"><Upload size={14} />上传<input aria-label={`上传${title}`} type="file" accept="audio/wav,audio/mpeg,audio/flac,audio/ogg,audio/mp4" onChange={e => { void upload(role, e.target.files?.[0]); e.target.value = ''; }} /></label></div>
       {asset && <audio controls preload="metadata" aria-label={`试听${title}原素材`} src={mediaUrl(asset.url)} onLoadedMetadata={e => {
         const duration = e.currentTarget.duration;
         if (Number.isFinite(duration) && clip.start === 0 && clip.end === 10 && duration < 10) update(d => d[role].assetId === asset.id ? { ...d, [role]: { ...d[role], end: Math.floor(duration * 1000) / 1000 } } : d);
       }} />}
       <div className="generation-row"><label>起点（秒）<input aria-label={`${title}起点`} type="number" min={0} step={.1} value={clip.start} onChange={e => edit({ [role]: { ...clip, start: +e.target.value } })} /></label><label>终点（秒）<input aria-label={`${title}终点`} type="number" min={0} step={.1} value={clip.end} onChange={e => edit({ [role]: { ...clip, end: +e.target.value } })} /></label></div>
-      <small className="muted">合成仅使用指定片段（1–30 秒）；播放器试听原素材。建议选清晰、单人、无背景音乐的人声。</small>
+      <small className="muted">合成仅使用指定片段（1–30 秒）；播放器试听原素材。建议选清晰、单人、无背景音乐的人声。</small></PanelAction>
     </section>;
   }
   async function run() {
@@ -93,17 +95,18 @@ export function SpeechGeneration({ assets, value, update, session, imported, sub
       {reference('speaker','音色参考')}
       <textarea className="composer-prompt" aria-label="合成文字" maxLength={1000} value={value.text} onChange={e => edit({ text: e.target.value })} placeholder="输入要合成的文字…" />
       <div className="prompt-meta"><span>内容按原文朗读；不会自动改写</span><span>{value.text.length}/{profile?.maxTextCharacters || 1000}</span></div>
-      <label>情绪方式<Select aria-label="情绪方式" value={value.emotionMode} onChange={e => edit({ emotionMode: e.target.value })}>{modes.map(([key,title]) => <option key={key} value={key} disabled={!!profile && !profile.emotionModes.includes(key)}>{title}</option>)}</Select></label>
+      <PanelAction title="情绪设置" label={`情绪 · ${modes.find(([id]) => id === value.emotionMode)?.[1] || value.emotionMode}`} wide disabled={busy || !!uploading}><label>情绪方式<Select aria-label="情绪方式" value={value.emotionMode} onChange={e => edit({ emotionMode: e.target.value })}>{modes.map(([key,title]) => <option key={key} value={key} disabled={!!profile && !profile.emotionModes.includes(key)}>{title}</option>)}</Select></label>
       {value.emotionMode === 'reference' && reference('emotionReference','情绪参考')}
       {value.emotionMode === 'text' && <label>情绪描述<textarea aria-label="情绪描述" maxLength={500} value={value.emotionText} onChange={e => edit({ emotionText: e.target.value })} placeholder="例如：轻声安慰，温暖而平静" /><small className="muted">需要执行端启用额外的文字情绪模型。</small></label>}
       {value.emotionMode === 'vector' && <div className="speech-emotions">{model.emotionLabels.map((label,i) => <label key={label}>{label} {value.emotionVector[i].toFixed(2)}<input aria-label={`${label}强度`} type="range" min={0} max={1} step={.05} value={value.emotionVector[i]} onChange={e => edit({ emotionVector: value.emotionVector.map((n,j) => i === j ? +e.target.value : n) })} /></label>)}</div>}
       {value.emotionMode !== 'follow' && <label>情绪影响 {value.emotionAlpha.toFixed(2)}<input aria-label="情绪影响" type="range" min={0} max={1} step={.05} value={value.emotionAlpha} onChange={e => edit({ emotionAlpha: +e.target.value })} /></label>}
+      </PanelAction>
       <ExecutionTarget profile={profile} value={targetWorkerId} change={setTargetWorkerId} />
-      {settings && <section className="composer-popover" aria-label="语音参数设置"><div className="generation-row"><label>语言<Select aria-label="语言" value={value.language} onChange={e => edit({ language: e.target.value })}>{[['ZH','中文'],['EN','英语'],['JA','日语'],['ES','西班牙语'],['AR','阿拉伯语']].map(([id,name]) => <option key={id} value={id} disabled={!!profile && !profile.languages.includes(id)}>{name}</option>)}</Select></label><label>语速 {value.speed.toFixed(2)}×<input aria-label="语速" type="range" min={.5} max={2} step={.05} value={value.speed} onChange={e => edit({ speed: +e.target.value })} /></label></div>
+      {settings && <FloatingPanel anchor={settingsAnchor} title="语音参数设置" close={() => setSettings(false)} disabled={busy || !!uploading}><div className="generation-row"><label>语言<Select aria-label="语言" value={value.language} onChange={e => edit({ language: e.target.value })}>{[['ZH','中文'],['EN','英语'],['JA','日语'],['ES','西班牙语'],['AR','阿拉伯语']].map(([id,name]) => <option key={id} value={id} disabled={!!profile && !profile.languages.includes(id)}>{name}</option>)}</Select></label><label>语速 {value.speed.toFixed(2)}×<input aria-label="语速" type="range" min={.5} max={2} step={.05} value={value.speed} onChange={e => edit({ speed: +e.target.value })} /></label></div>
         <div className="generation-row"><label>执行配置<Select aria-label="语音执行配置" value={profile?.profileId || ''} onChange={e => edit({ profileId: e.target.value })}><option value="" disabled>暂无已登记规格</option>{profiles.map(p => <option key={p.profileId} value={p.profileId}>{p.identity?.revision} · {p.identity?.quantization} · {p.maxTextCharacters} 字 · {p.emotionModes.includes('text') ? '含文字情绪' : '基础情绪'} · {p.profileId.slice(0,8)}</option>)}</Select></label><button onClick={refresh} disabled={loading}>{loading ? '刷新中…' : '刷新配置'}</button></div>
-        <p className="muted">输出 WAV · 24kHz · 单声道。语速改变实际时长，不承诺精确秒数。</p></section>}
+        <p className="muted">输出 WAV · 24kHz · 单声道。语速改变实际时长，不承诺精确秒数。</p></FloatingPanel>}
     </fieldset>
     {uploading && <p className="muted">参考音频上传中 {uploading}</p>}{error && <p className="error" role="alert">{error}</p>}{invalid && <p className="composer-validation" role="status">{invalid}</p>}
-    <footer className="composer-toolbar"><span className="model-picker">IndexTTS 2.5</span><button aria-label="语音参数" aria-expanded={settings} onClick={() => setSettings(v => !v)}><Settings2 size={16} />{value.speed.toFixed(2)}× · WAV</button><button className="primary generate-submit" aria-label="合成语音" disabled={taskRunning || !!invalid || busy || !!uploading} onClick={run}><ArrowUp size={17} />{busy ? '提交中…' : '合成'}</button></footer>
+    <footer className="composer-toolbar"><span className="model-picker">IndexTTS 2.5</span><button ref={settingsAnchor} aria-label="语音参数" aria-expanded={settings} onClick={() => setSettings(v => !v)}><Settings2 size={16} />{value.speed.toFixed(2)}× · WAV</button><button className="primary generate-submit" aria-label="合成语音" disabled={taskRunning || !!invalid || busy || !!uploading} onClick={run}><ArrowUp size={17} />{busy ? '提交中…' : '合成'}</button></footer>
   </div>;
 }

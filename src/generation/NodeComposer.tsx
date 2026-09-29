@@ -1,3 +1,4 @@
+import { hasOverlays } from '../overlays';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useViewport } from "@xyflow/react";
 import { X, Maximize2, Minimize2 } from "lucide-react";
@@ -23,13 +24,13 @@ export function NodeComposer({ nodeId, title, layout, close, children, typeContr
         setPlacement({ width, maxHeight: bottom - top, left: c.left + (c.width - width) / 2, top, visible: true });
         return;
       }
-      const below = bottom - n.bottom - 14, above = n.top - 14 - top;
+      const below = bottom - n.bottom - 14, above = n.top - 86 - top;
       const goesBelow = below >= Math.min(element.scrollHeight, 300) || below >= above;
       const maxHeight = Math.max(140, goesBelow ? below : above);
       const height = Math.min(element.scrollHeight, maxHeight);
       const next = { width, maxHeight,
         left: Math.max(c.left + 12, Math.min(c.right - width - 12, n.left + n.width / 2 - width / 2)),
-        top: Math.max(top, Math.min(bottom - height, goesBelow ? n.bottom + 14 : n.top - height - 14)),
+        top: Math.max(top, Math.min(bottom - height, goesBelow ? n.bottom + 14 : n.top - height - 86)),
         visible: n.right > c.left && n.left < c.right && n.bottom > top && n.top < bottom };
       setPlacement(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
     };
@@ -42,11 +43,12 @@ export function NodeComposer({ nodeId, title, layout, close, children, typeContr
   }, [nodeId, layout, viewport.x, viewport.y, viewport.zoom, expanded]);
   useEffect(() => {
     const outside = (event: Event) => {
+      if (hasOverlays()) return;
       const target = event.target as HTMLElement;
       if (target.closest?.(".asset-card, [data-editor-overlay]")) return; // Keep the destination open while dragging a library reference.
       if (!panel.current?.contains(target) && !getNode()?.contains(target)) close();
     };
-    const key = (event: KeyboardEvent) => { if ((event.target as HTMLElement).closest?.("[data-editor-overlay]")) return; if (event.key === "Escape") { event.preventDefault(); close(); } };
+    const key = (event: KeyboardEvent) => { if (hasOverlays()) return; if ((event.target as HTMLElement).closest?.("[data-editor-overlay]")) return; if (event.key === "Escape") { event.preventDefault(); close(); } };
     document.addEventListener("pointerdown", outside, true);
     document.addEventListener("focusin", outside);
     document.addEventListener("keydown", key);

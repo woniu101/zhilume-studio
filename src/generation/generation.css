@@ -1,9 +1,12 @@
-.node-composer { position: fixed; z-index: 40; overflow: auto; overscroll-behavior: contain; padding: 16px; border: 1px solid var(--border); border-radius: 18px; background: var(--bg); box-shadow: var(--shadow); }
+.node-composer { position: fixed; z-index: 40; display:flex; flex-direction:column; overflow: hidden; overscroll-behavior: contain; padding: 16px; border: 1px solid var(--border); border-radius: 18px; background: var(--bg); box-shadow: var(--shadow); }
 .node-composer > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; color: var(--muted); font-size: 12px; }
 .node-composer > header > div { display: flex; gap: 4px; }
 .node-composer > header .icon-button { width: 26px; height: 26px; padding: 4px; }
-.generation { display: grid; gap: 12px; }
-.generation fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 12px; }
+.generation { display: flex; flex-direction:column; min-height:0; gap: 12px; }
+.node-composer > header, .generation > footer { flex-shrink:0; }
+.node-composer > .generation { flex:1; overflow:hidden; }
+.node-composer > .generation > fieldset { overflow:auto; overscroll-behavior:contain; min-height:0; padding:3px; }
+.generation fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; grid-auto-rows:max-content; align-content:start; gap: 12px; }
 .generation label { display: grid; gap: 7px; min-width: 0; margin: 0; font-size: 13px; }
 .generation input, .generation .select-trigger, .generation textarea { width: 100%; min-width: 0; box-sizing: border-box; margin: 0; }
 .generation .select-trigger, .generation input { padding: 7px 9px; }
@@ -52,7 +55,7 @@
 .composer-validation button { color: var(--accent); padding: 4px 7px; }
 .generation .composer-notice { font-size: 11px; }
 .generation footer { display: flex; align-items: center; gap: 8px; }
-.generation .composer-toolbar { position: sticky; bottom: -16px; padding: 10px 0 4px; background: var(--bg); flex-wrap: wrap; }
+.generation .composer-toolbar { flex-shrink:0; padding: 10px 0 4px; background: var(--bg); flex-wrap: wrap; }
 .composer-toolbar > button { display: inline-flex; gap: 4px; align-items: center; justify-content: center; padding: 8px; font-size: 12px; }
 .generation .model-picker { width: auto; flex: 1; max-width: 205px; font-size: 12px; border-color: transparent; background-color: transparent; }
 .composer-toolbar .generate-submit { margin-left: auto; border-radius: 20px; min-width: 74px; }
@@ -96,7 +99,7 @@
 .composer-task small { display:block; color:var(--muted); margin-top:4px; }
 .composer-task button { flex-shrink:0; padding:6px 10px; }
 .node-versions { margin-top:12px; border-top:1px solid var(--border); padding-top:6px; font-size:12px; color:var(--muted); }
-.node-versions > div { display:grid; gap:10px; max-height:340px; overflow:auto; padding:6px 0; }
+.node-versions > div { display:grid; gap:10px; padding:6px 0; }
 .node-versions article { padding:12px; background:var(--panel); border:1px solid var(--border); border-radius:10px; display:grid; gap:8px; }
 .node-versions img, .node-versions video { width:100%; height:140px; object-fit:contain; }
 .node-versions audio { width:100%; height:32px; }

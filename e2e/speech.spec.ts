@@ -17,21 +17,26 @@ async function setup(page: any, request: any, online = true) {
   await page.locator('.react-flow__node[data-id="speech"]').click({ position: { x: 40, y: 35 } });
   const panel = page.getByRole('region', { name: '语音合成', exact: true });
   await expect(panel).toBeVisible();
-  await selectOption(panel.getByRole('combobox', { name: '音色参考', exact: true }), asset.id);
+  await panel.getByRole('button',{name:/音色参考 ·/}).click();
+  await selectOption(page.getByRole('combobox', { name: '音色参考', exact: true }), asset.id);
+
+  await page.getByLabel('音色参考终点').fill('1.5');await page.keyboard.press('Escape');
   await panel.getByLabel('合成文字').fill('欢迎来到织镜。');
-  await panel.getByLabel('音色参考终点').fill('1.5');
   return { panel, project, asset };
 }
 test('speech drafts, reference roles, model limits and retry idempotency', async ({ page, request }) => {
   const { panel, project, asset } = await setup(page, request);
   await panel.getByRole('button', { name: '语音参数', exact: true }).click();
-  await panel.getByLabel('语速', { exact: true }).fill('1.25');
-  await selectOption(panel.getByLabel('情绪方式'), 'reference');
-  await selectOption(panel.getByRole('combobox', { name: '情绪参考', exact: true }), asset.id);
-  await panel.getByLabel('情绪参考起点').fill('0.5');
-  await panel.getByLabel('情绪参考终点').fill('2');
-  await panel.getByLabel('情绪方式').click();
+  await page.getByLabel('语速', { exact: true }).fill('1.25');
+  await page.keyboard.press('Escape');await panel.getByRole('button',{name:/情绪 ·/}).click();
+  await selectOption(page.getByLabel('情绪方式'), 'reference');
+  await page.getByRole('dialog',{name:'情绪设置'}).getByRole('button',{name:/情绪参考 ·/}).click();
+  await selectOption(page.getByRole('combobox', { name: '情绪参考', exact: true }), asset.id);
+  await page.getByLabel('情绪参考起点').fill('0.5');
+  await page.getByLabel('情绪参考终点').fill('2');
+  await page.keyboard.press('Escape');await page.getByLabel('情绪方式').click();
   await expect(page.getByRole('listbox').locator('[data-value="text"]')).toHaveAttribute('aria-disabled', 'true');
+  await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   await expect(panel.getByRole('button', { name: '合成语音' })).toBeEnabled();
   await page.screenshot({ path: 'test-results/speech-dark.png' });
@@ -58,9 +63,10 @@ test('offline speech remains editable and hides when canvas loses focus', async 
   const { panel } = await setup(page, request, false);
   await expect(panel.getByRole('status')).toContainText('暂无已启用 IndexTTS');
   await expect(panel.getByRole('button', { name: '合成语音' })).toBeDisabled();
-  await selectOption(panel.getByLabel('情绪方式'), 'vector');
-  await panel.getByLabel('高兴强度').fill('0.65');
+  await panel.getByRole('button',{name:/情绪 ·/}).click();
+  await selectOption(page.getByLabel('情绪方式'), 'vector');
+  await page.getByLabel('高兴强度').fill('0.65');
   await page.evaluate(() => document.documentElement.dataset.theme = 'light');
   await page.screenshot({ path: 'test-results/speech-light.png' });
-  await page.mouse.click(1380, 100); await expect(panel).toHaveCount(0);
+  await page.keyboard.press('Escape');await page.mouse.click(1380, 100); await expect(panel).toHaveCount(0);
 });

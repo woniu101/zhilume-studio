@@ -1,0 +1,11 @@
+.floating-panel { position:fixed; z-index:900; display:flex !important; flex-direction:column; gap:0 !important; border:1px solid var(--border); border-radius:14px; background:var(--panel); color:var(--text); box-shadow:var(--shadow); overflow:hidden; padding:0; outline:none; box-sizing:border-box; }
+.floating-panel > header { flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--border); font-size:13px; }
+.floating-panel > header button { padding:3px 8px; font-size:20px; border:0; background:transparent; }
+.floating-panel > .floating-body { display:grid; gap:12px; overflow:auto; overscroll-behavior:contain; min-height:0; padding:16px; }
+.panel-action { width:fit-content; max-width:100%; font-size:12px; padding:5px 8px; color:var(--muted); background:transparent; }
+.floating-panel .node-versions { margin:0; padding:0; border:0; }
+.floating-panel .node-versions > div { max-height:none; overflow:visible; }
+.floating-panel .suggestion-review { grid-template-columns:1fr 1fr; }
+.floating-panel .suggestion-review > small,.floating-panel .suggestion-review > div { grid-column:1/-1; }
+.floating-panel .suggestion-review textarea { min-height:180px; }
+@media(max-width:640px){.floating-panel .suggestion-review{grid-template-columns:1fr;}}

@@ -1,3 +1,4 @@
+const { installEditMenu } = require('./edit-menu.cjs');
 const {
   app,
   BrowserWindow,
@@ -36,6 +37,7 @@ app.on("second-instance", () => {
   window?.show();
   window?.focus();
 });
+app.on('browser-window-created', (_event, target) => installEditMenu(target));
 app.whenReady().then(() => {
   const executable = require('ffmpeg-static').replace('app.asar', 'app.asar.unpacked');
   app.setAppUserModelId("app.zhilume.studio");

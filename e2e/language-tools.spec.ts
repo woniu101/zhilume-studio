@@ -11,13 +11,13 @@ test('prompt suggestion requires explicit apply and never changes original on fa
   await page.addInitScript(()=>sessionStorage.setItem('zhilume.session','e2e-local-fixture-only'));
   await page.goto('/');await page.getByText(project.name,{exact:true}).click();await page.locator('.react-flow__node[data-id="image"]').click();
   const panel=page.getByRole('region',{name:'图片生成与编辑'}),prompt=panel.getByLabel('提示词',{exact:true});
-  await panel.locator('.language-tools > summary').click();
-  await panel.getByRole('button',{name:'优化提示词',exact:true}).click();
-  await expect(panel.getByLabel('建议稿')).toHaveValue('更清晰的建议描述');await expect(prompt).toHaveValue('原始描述');
+  await panel.getByRole('button',{name:'✦ 优化提示词（可选）'}).click();
+  await page.getByRole('button',{name:'优化提示词',exact:true}).click();
+  await expect(page.getByLabel('建议稿')).toHaveValue('更清晰的建议描述');await expect(prompt).toHaveValue('原始描述');
   await page.screenshot({path:'test-results/prompt-suggestion-review.png'});
-  await panel.getByRole('button',{name:'应用建议'}).click();await expect(prompt).toHaveValue('更清晰的建议描述');
-  fail=true;await prompt.fill('保留新的原稿');await panel.getByRole('button',{name:'优化提示词',exact:true}).click();
-  await expect(panel.getByRole('alert')).toHaveText('测试服务失败');await expect(prompt).toHaveValue('保留新的原稿');
+  await page.getByRole('button',{name:'应用建议'}).click();await expect(prompt).toHaveValue('更清晰的建议描述');
+  await page.keyboard.press('Escape'); fail=true;await prompt.fill('保留新的原稿');await panel.getByRole('button',{name:'✦ 优化提示词（可选）'}).click();await page.getByRole('button',{name:'优化提示词',exact:true}).click();
+  await expect(page.getByRole('dialog',{name:'优化提示词',exact:true}).getByRole('alert')).toHaveText('测试服务失败');await expect(prompt).toHaveValue('保留新的原稿');
 });
 
 test('Worker language model exposes execution target and failed retry uses a new idempotency key',async({page,request})=>{
@@ -30,12 +30,12 @@ test('Worker language model exposes execution target and failed retry uses a new
   await page.addInitScript(()=>sessionStorage.setItem('zhilume.session','e2e-local-fixture-only'));
   await page.goto('/');await page.getByText(project.name,{exact:true}).click();await page.locator('.react-flow__node[data-id="image"]').click();
   const panel=page.getByRole('region',{name:'图片生成与编辑'});
-  await panel.locator('.language-tools > summary').click();
-  await panel.locator('.language-tools .execution-target > summary').click();
-  await selectOption(panel.getByLabel('指定执行端'), 'worker-b');
-  await panel.getByRole('button',{name:'优化提示词',exact:true}).click();
-  await expect(panel.getByRole('alert')).toHaveText('执行端测试失败');
-  await panel.getByRole('button',{name:'优化提示词',exact:true}).click();
+  await panel.getByRole('button',{name:'✦ 优化提示词（可选）'}).click();
+  await page.getByRole('dialog',{name:'优化提示词',exact:true}).getByRole('button',{name:/执行设置/}).click();
+  await selectOption(page.getByLabel('指定执行端'), 'worker-b');await page.keyboard.press('Escape');
+  await page.getByRole('button',{name:'优化提示词',exact:true}).click();
+  await expect(page.getByRole('dialog',{name:'优化提示词',exact:true}).getByRole('alert')).toHaveText('执行端测试失败');
+  await page.getByRole('button',{name:'优化提示词',exact:true}).click();
   await expect.poll(()=>submitted.length).toBe(2);
   expect(submitted[0].targetWorkerId).toBe('worker-b');expect(submitted[1].requestId).not.toBe(submitted[0].requestId);
   await expect(panel.getByLabel('提示词',{exact:true})).toHaveValue('保持原稿');

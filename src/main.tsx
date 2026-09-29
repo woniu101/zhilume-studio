@@ -977,7 +977,7 @@ function Workspace({
         dialog ||
         conflict ||
         (e.target as HTMLElement).closest(
-          "input,textarea,select,video,audio,.media-player,.node-composer,[contenteditable=true]",
+          "input,textarea,select,video,audio,.media-player,.node-composer,[data-editor-overlay],[contenteditable=true]",
         )
       )
         return;
@@ -1281,6 +1281,7 @@ function Workspace({
                 if (empty || ["image", "video", "audio", "text"].includes(node.data.kind)) setComposer({ id: node.id, mode: node.data.kind === "video" ? "video" : node.data.kind === "audio" ? "speech" : node.data.kind === "image" ? "image" : "content" });
               }}
               onPaneContextMenu={(e) => {
+                if ((e.target as HTMLElement).closest("input,textarea,[contenteditable], [data-editor-overlay]") || window.getSelection()?.toString()) return;
                 e.preventDefault();
                 setMenu({
                   x: Math.min(e.clientX, innerWidth - 190),
@@ -1292,6 +1293,7 @@ function Workspace({
                 });
               }}
               onNodeContextMenu={(e, n) => {
+                if ((e.target as HTMLElement).closest("input,textarea,[contenteditable], [data-editor-overlay]") || window.getSelection()?.toString()) return;
                 e.preventDefault();
                 setMenu({
                   x: Math.min(e.clientX, innerWidth - 190),

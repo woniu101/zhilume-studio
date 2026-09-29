@@ -1,12 +1,13 @@
+import { PanelAction } from '../overlays';
 import { useState } from 'react';
 import type { CanvasNode } from '../canvas';
 import type { ContentVersion } from '../node-content';
 import { mediaUrl } from '../api';
 export function NodeVersions({ node, assets, restore, branch }: { node: CanvasNode; assets: Record<string, any>; restore: (v: ContentVersion) => void; branch: (v: ContentVersion) => void }) {
-  const [open,setOpen] = useState(false), [limit,setLimit] = useState(20);
+  const [limit,setLimit] = useState(20);
   const versions = node.data.versions || [];
   if (!versions.length) return null;
-  return <details className="node-versions" onToggle={e => setOpen(e.currentTarget.open)}><summary>历史版本 · {versions.length}</summary>{open && <div>
+  return <PanelAction title="历史版本" label={`历史版本 · ${versions.length}`} wide><section className="node-versions"><div>
     {[...versions].reverse().slice(0,limit).map((v,i) => { const asset = v.assetId ? assets[v.assetId] : null; const current = v.assetId ? v.assetId === node.data.assetId : v.text === node.data.text;
       return <article key={v.id}>
         {asset?.kind === 'image' && <img src={mediaUrl(asset.url)} loading="lazy" alt={`版本 ${versions.length-i}`}/>}
@@ -19,5 +20,5 @@ export function NodeVersions({ node, assets, restore, branch }: { node: CanvasNo
       </article>;
     })}
   {limit < versions.length && <button onClick={() => setLimit(n => n+20)}>加载更多版本</button>}
-  </div>}</details>;
+  </div></section></PanelAction>;
 }

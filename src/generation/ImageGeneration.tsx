@@ -1,3 +1,4 @@
+import { FloatingPanel, PanelAction } from '../overlays';
 import { initialProfile } from './model-selection';
 import { Select } from '../Select';
 import { useNodeTask } from './NodeTask';
@@ -21,6 +22,9 @@ export function ImageGeneration({ assets, value, update, session, imported, subm
   submit: (operation: string, input: object, requestId: string, targetWorkerId?: string) => Promise<void>;
 }) {
   const taskRunning = useNodeTask();
+  const referencesAnchor = useRef<HTMLButtonElement>(null);
+  const advancedAnchor = useRef<HTMLButtonElement>(null);
+  const outputAnchor = useRef<HTMLButtonElement>(null);
   const targetWorkerId = value.targetWorkerId || '';
   const setTargetWorkerId = (id: string) => update(d => ({ ...d, targetWorkerId: id }));
   const { operation, modelId, profileId, prompt, negative, refs, format, width, height, steps, seed } = value;
@@ -29,6 +33,7 @@ export function ImageGeneration({ assets, value, update, session, imported, subm
   const [models, setModels] = useState<Model[]>(catalog.imageModels.map(m => ({ ...m, profiles: [] })));
   const [busy, setBusy] = useState(!!session.inFlight), [loading, setLoading] = useState(false), [error, setError] = useState("");
   const [menu, setMenu] = useState<"references" | "output" | "advanced" | null>(null);
+  const previewAnchor = useRef<HTMLButtonElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const toggle = (next: typeof menu) => setMenu(current => current === next ? null : next);
@@ -139,7 +144,7 @@ export function ImageGeneration({ assets, value, update, session, imported, subm
             onDragStart={e => { e.dataTransfer.setData("application/x-zhilume-reference", id); e.dataTransfer.effectAllowed = "move"; }}
             onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "move"; }}
             onDrop={e => { e.preventDefault(); e.stopPropagation(); const from = refs.indexOf(e.dataTransfer.getData("application/x-zhilume-reference")); if (!busy && !uploading && from >= 0 && from !== i) reorder(from, i); }}>
-            <button className="reference-thumbnail checkerboard" aria-label={`查看参考图 ${i + 1}`} onClick={() => setPreview(id)}>{asset ? <img src={mediaUrl(asset.url)} alt={asset.filename} /> : <span>素材不存在</span>}</button>
+            <button className="reference-thumbnail checkerboard" aria-label={`查看参考图 ${i + 1}`} onClick={e => {previewAnchor.current=e.currentTarget;setPreview(id);}}>{asset ? <img src={mediaUrl(asset.url)} alt={asset.filename} /> : <span>素材不存在</span>}</button>
             <span className="reference-number">{i + 1}</span>
             <button className="reference-remove" aria-label={`移除参考图 ${i + 1}`} onClick={() => setRefs(r => r.filter(v => v !== id))}><X size={12} /></button>
             <span className="reference-role">{i === 0 ? operation === "image.edit.v1" ? "被编辑图片" : "构图基准图" : "参考图片"}</span>
@@ -147,33 +152,33 @@ export function ImageGeneration({ assets, value, update, session, imported, subm
             <div className="reference-actions"><GripVertical size={12} aria-hidden="true" /><button disabled={!i} aria-label={`将参考图 ${i + 1} 向前移动`} onClick={() => reorder(i, i - 1)}>←</button><button disabled={!i} aria-label={`将参考图 ${i + 1} 设为构图基准`} onClick={() => reorder(i, 0)}>设为基准</button></div>
           </li>;
         })}</ol>
-        <button className="reference-add" aria-label="添加参考素材" aria-expanded={menu === "references"} disabled={refs.length >= referenceLimit} onClick={() => toggle("references")}><ImagePlus size={22} /><span>参考图片</span><small>{refs.length}/{referenceLimit}</small></button>
+        <button className="reference-add" ref={referencesAnchor} aria-label="添加参考素材" aria-expanded={menu === "references"} disabled={refs.length >= referenceLimit} onClick={() => toggle("references")}><ImagePlus size={22} /><span>参考图片</span><small>{refs.length}/{referenceLimit}</small></button>
       </div>}
       <input ref={input} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden aria-label="上传参考图片"
         onChange={e => { void upload(Array.from(e.target.files || [])); e.target.value = ""; }} />
-      {menu === "references" && <section className="composer-popover" aria-label="选择参考图片">
+      {menu === "references" && <FloatingPanel anchor={referencesAnchor} title="选择参考图片" close={() => setMenu(null)} disabled={busy || !!uploading}>
         <div className="reference-input"><button onClick={() => input.current?.click()}><Plus size={14} /> 上传参考图</button><span className="muted">也可将图片拖入面板</span></div>
         <label>添加参考图<Select aria-label="添加参考图" value="" disabled={refs.length >= referenceLimit} onChange={e => { if (e.target.value) addReferences([e.target.value]); }}><option value="">从已有图片选择…</option>{images.filter(a => !refs.includes(a.id)).map(a => <option key={a.id} value={a.id}>{a.filename}</option>)}</Select></label>
         <p className="muted">{referenceProfile ? `当前执行配置最多 ${referenceLimit} 张` : `离线可准备最多 ${referenceLimit} 张，提交时按在线配置校验`}。拖动卡片可排序，第一张决定参考输出比例。</p>
-      </section>}
-      {preview && <section className="reference-preview checkerboard" aria-label="参考图片预览"><img src={mediaUrl(images.find(a => a.id === preview)?.url || "")} alt="参考图大图" /><button aria-label="关闭参考预览" onClick={() => setPreview(null)}><X size={16} /></button></section>}
+      </FloatingPanel>}
+      {preview && <FloatingPanel anchor={previewAnchor} title="参考图片预览" wide close={() => setPreview(null)}><div className="reference-preview checkerboard"><img src={mediaUrl(images.find(a => a.id === preview)?.url || "")} alt="参考图大图" /></div></FloatingPanel>}
       <textarea className="composer-prompt" aria-label="提示词" rows={3} maxLength={12000} value={prompt} onChange={e => edit({ prompt: e.target.value })} placeholder={generate ? "描述你想生成的画面…" : "说明保留什么、修改什么，或如何组合参考图片…"} />
       <LanguageTools value={prompt} apply={v => edit({ prompt: v })} purpose="qwen" context={{ operation }} referenceAssetIds={refs} />
       <ExecutionTarget profile={profile} value={targetWorkerId} change={setTargetWorkerId} />
       <div className="prompt-meta"><span>{generate ? "文字描述画面" : "参考顺序与提示词一起保存"}</span><span>{prompt.length}/12000</span></div>
-      {menu === "output" && <section className="composer-popover" aria-label="输出参数设置">
+      {menu === "output" && <FloatingPanel anchor={outputAnchor} title="输出参数设置" close={() => setMenu(null)} disabled={busy || !!uploading}>
         {generate ? <>
           <div className="ratio-grid" role="group" aria-label="画面比例">{ratios.map(([key, w, h]) => <button key={key} aria-pressed={preset === key} disabled={!ratioSize(key, maxSize)} onClick={() => chooseSize(key)}><i style={{ width: 22 * Math.min(w / h, 1), height: 22 * Math.min(h / w, 1) }} /><span>{key}</span></button>)}<button aria-pressed={preset === "custom"} onClick={() => edit({ sizeMode: "custom" })}>自定义</button></div>
           {preset !== "custom" ? <div className="size-grid" role="group" aria-label="输出尺寸">{[512, 1024, 1536, 2048].filter(n => n <= maxSize).map(n => { const size = ratioSize(preset, maxSize, n); return size && <button key={n} aria-pressed={width === size.width && height === size.height} onClick={() => chooseSize(preset, n)}>{size.width} × {size.height}</button>; })}</div> : <div className="generation-row"><label>宽度<input aria-label="宽度" type="number" min={256} max={maxSize} step={32} value={width} onChange={e => edit({ width: +e.target.value })} /></label><label>高度<input aria-label="高度" type="number" min={256} max={maxSize} step={32} value={height} onChange={e => edit({ height: +e.target.value })} /></label></div>}
           <p className="muted">{width} × {height} 像素 · {profile ? `当前上限 ${maxSize}px` : "离线草稿，连接后检查尺寸"}</p>
         </> : <p className="muted">输出比例跟随构图基准图。{profile ? `参考处理分辨率 ${profile.referenceResolution}px。` : "连接后确认处理分辨率。"}在卡片上点击“设为基准”可更换。</p>}
         <label className="transparency-option"><input type="checkbox" aria-label="透明背景" checked={format === "rgba"} disabled={!model.formats.includes("rgba") || (!!profile && !profile.formats.includes("rgba"))} onChange={e => edit({ format: e.target.checked ? "rgba" : "png" })} /><span>透明背景 <small>{model.formats.includes("rgba") ? "保留模型返回的透明通道；请在提示词中说明透明背景" : "需要 Qwen Image 2.1"}</small></span></label>
-      </section>}
-      {menu === "advanced" && <section className="composer-popover" aria-label="更多参数设置">
+      </FloatingPanel>}
+      {menu === "advanced" && <FloatingPanel anchor={advancedAnchor} title="更多参数设置" close={() => setMenu(null)} disabled={busy || !!uploading}>
         <div className="generation-row"><label>执行配置<Select aria-label="执行配置" value={profile?.profileId || ""} onChange={e => edit({ profileId: e.target.value })}><option value="" disabled>暂无已登记规格</option>{model.profiles.map(p => <option key={p.profileId} value={p.profileId}>{p.identity?.revision} · {p.identity?.quantization || p.workflowRevision} · {p.readyCount || 0} 端 · {p.profileId.slice(0,8)}</option>)}</Select></label><button onClick={refresh} disabled={loading}>{loading ? "刷新中…" : "刷新"}</button></div>
         <label>反向提示词<textarea aria-label="反向提示词" rows={2} maxLength={12000} value={negative} onChange={e => edit({ negative: e.target.value })} /></label>
         <div className="generation-row"><label>步数<input aria-label="步数" type="number" min={1} max={100} value={steps} placeholder={String(profile?.defaultSteps || "默认")} onChange={e => edit({ steps: e.target.value })} /></label><label>随机种子<input aria-label="随机种子" type="number" min={0} value={seed} placeholder="自动随机" onChange={e => edit({ seed: e.target.value })} /></label></div>
-      </section>}
+      </FloatingPanel>}
     </fieldset>
     {uploading && <p className="muted">正在上传 {uploading}</p>}
     {notice && <p className="muted composer-notice">{notice}</p>}
@@ -181,8 +186,8 @@ export function ImageGeneration({ assets, value, update, session, imported, subm
     {invalid && <div className="composer-validation" role="status">{invalid}{!model.operations.includes(operation) && <button onClick={() => { edit({ modelId: "qwen-image-2.1", profileId: "" }); setNotice("已切换至 Qwen Image 2.1，原输入已保留。"); }}>切换至 Qwen 2.1</button>}{format === "rgba" && !model.formats.includes(format) && <button onClick={() => edit({ format: "png" })}>使用普通 PNG</button>}</div>}
     <footer className="composer-toolbar">
       <Select className="model-picker" aria-label="模型" disabled={busy || !!uploading} value={modelId} onChange={e => edit({ modelId: e.target.value, profileId: "" })}>{models.map(m => <option key={m.id} value={m.id}>{m.name}{m.profiles.length ? ` · ${m.profiles.reduce((count,p) => count+(p.readyCount || 0),0)} 端在线` : " · 未配置"}</option>)}</Select>
-      <button aria-label="输出参数" aria-expanded={menu === "output"} disabled={busy || !!uploading} onClick={() => toggle("output")}>{generate ? `${width} × ${height}` : "跟随基准图"}{format === "rgba" ? " · 透明" : ""}<ChevronDown size={13} /></button>
-      <button aria-label="更多参数" aria-expanded={menu === "advanced"} disabled={busy || !!uploading} onClick={() => toggle("advanced")}><Settings2 size={16} /></button>
+      <button ref={outputAnchor} aria-label="输出参数" aria-expanded={menu === "output"} disabled={busy || !!uploading} onClick={() => toggle("output")}>{generate ? `${width} × ${height}` : "跟随基准图"}{format === "rgba" ? " · 透明" : ""}<ChevronDown size={13} /></button>
+      <button ref={advancedAnchor} aria-label="更多参数" aria-expanded={menu === "advanced"} disabled={busy || !!uploading} onClick={() => toggle("advanced")}><Settings2 size={16} /></button>
       <button className="primary generate-submit" aria-label="提交生成" title={taskRunning ? "当前节点任务尚未结束" : invalid || "生成到当前节点"} disabled={taskRunning || busy || !!uploading || !!invalid} onClick={run}>{busy ? "提交中…" : <><ArrowUp size={18} /><span>生成</span></>}</button>
     </footer>
   </div>;

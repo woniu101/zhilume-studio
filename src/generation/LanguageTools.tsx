@@ -1,3 +1,4 @@
+import { PanelAction } from '../overlays';
 import type { LanguageSelection } from './model-selection';
 import { useNodeTask } from './NodeTask';
 import { Select } from '../Select';
@@ -40,7 +41,7 @@ export function LanguageTools({ value, apply, purpose = 'general', generate = fa
     finally { setSubmitting(false); if(generate)pending?.(false); }
   }
   const selectedModel = models.find(m => m.profileId === modelId);
-  return <details className="language-tools" open={generate || undefined}><summary>{generate ? "文本生成" : "✦ 优化提示词（可选）"}</summary>
+  const content = <div className="language-tools">
     <div className="generation-row"><Select aria-label="语言模型" value={modelId} onChange={e => {setSelected(e.target.value);setLocalWorker('');select?.({profileId:e.target.value,targetWorkerId:''});}} disabled={!!busy}>
       <option value="">{generate ? '选择语言模型' : '使用默认优化模型 / 选择模型'}</option>{models.map(m => <option key={m.profileId} value={m.profileId}>{m.providerName} / {m.name}{m.executor === 'worker' ? ` · ${m.readyCount} 个执行端就绪` : m.ready ? '' : ' · 已停用'}</option>)}
     </Select><button disabled={!!busy || !modelId || !value.trim()} onClick={() => void run()}>{generate ? '生成文本' : '优化提示词'}</button>
@@ -53,12 +54,13 @@ export function LanguageTools({ value, apply, purpose = 'general', generate = fa
     {suggestion && <div className="suggestion-review"><label>原稿<textarea readOnly value={original}/></label><label>建议稿<textarea value={suggestion} onChange={e => setSuggestion(e.target.value)}/></label>
       {value !== original && <small>你已修改原稿；应用建议会替换当前输入。</small>}
       <div className="generation-row"><button onClick={() => { setSuggestion(''); request.current = null; }}>放弃建议</button><button className="primary" onClick={() => { apply(suggestion); setSuggestion(''); request.current = null; }}>应用建议</button></div></div>}
-  </details>;
+  </div>;
+  return generate ? content : <PanelAction title="优化提示词" label="✦ 优化提示词（可选）" wide>{content}</PanelAction>;
 }
 
 export function ExecutionTarget({ profile, value, change }: { profile: any; value: string; change: (id: string) => void }) {
   if (!profile) return null;
-  return <details className="execution-target"><summary>{profile.readyCount > 0 ? `${profile.readyCount} 个执行端可用` : "模型离线 · 提交后等待上线"} · 执行设置</summary><small>{profile.readyCount || 0} 个执行端就绪 · {profile.identity?.revision || ''} · {profile.identity?.quantization || ''} · 规格 {profile.profileId.slice(0, 8)}</small>
+  return <PanelAction title="执行设置" label={`${profile.readyCount > 0 ? `${profile.readyCount} 个执行端可用` : "模型离线 · 提交后等待上线"} · 执行设置`}><small>{profile.readyCount || 0} 个执行端就绪 · {profile.identity?.revision || ''} · {profile.identity?.quantization || ''} · 规格 {profile.profileId.slice(0, 8)}</small>
     <label>执行端<Select aria-label="指定执行端" value={value} onChange={e => change(e.target.value)}><option value="">自动分配相同规格</option>{(profile.workers || []).filter((w: any) => w.id !== 'registry').map((w: any) => <option value={w.id} key={w.id}>{w.name}{w.ready ? '' : ' · 离线'}</option>)}</Select></label>
-  </details>;
+  </PanelAction>;
 }
