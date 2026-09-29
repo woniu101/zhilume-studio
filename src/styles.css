@@ -182,7 +182,11 @@ h3 {
   letter-spacing: -0.7px;
   font-weight: 650;
 }
+.brand > span:last-child {
+  line-height: 1.2;
+}
 .brand small {
+  line-height: 1.2;
   display: block;
   font-size: 9px;
   letter-spacing: 2px;
@@ -225,7 +229,7 @@ h3 {
   background: var(--panel);
   box-shadow: var(--shadow);
 }
-.login-card small {
+.login-card > small {
   display: block;
   line-height: 1.8;
   margin-top: 20px;
@@ -994,3 +998,7 @@ h3 {
 .node-status { top: calc(100% + 8px); bottom: auto; flex-wrap: wrap; width: 100%; font-size: 11px; }
 .node-status button { padding: 2px 7px; font-size: 11px; }
 .node-job-error { color: var(--danger); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.connection-pill[data-status="offline"], .connection-pill[data-status="unauthorized"] { color: var(--danger, #d98282); }
+.connection-pill[data-status="offline"] .dot, .connection-pill[data-status="unauthorized"] .dot { background: currentColor; }
+.connection-pill[data-status="checking"] .dot { background: var(--muted); }

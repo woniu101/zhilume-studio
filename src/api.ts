@@ -32,7 +32,7 @@ export class ApiError extends Error {
 export const connection = {
   base:
     localStorage.getItem("zhilume.server") ||
-    (location.protocol === "app:" ? "http://127.0.0.1:4310" : ""),
+    (location.protocol === "app:" ? "http://127.0.0.1:4310" : location.origin),
   token: sessionStorage.getItem("zhilume.session") || "",
 };
 export async function api(

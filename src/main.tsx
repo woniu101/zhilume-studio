@@ -1,3 +1,5 @@
+import { useServerHealth, serverHealthLabel } from "./use-server-health";
+import type { ServerHealth } from "./server-health";
 import { TaskGroupRunner } from './generation/TaskGroupRunner';
 import { LanguageProject } from './generation/LanguageTools';
 import { VideoGeneration } from "./generation/VideoGeneration";
@@ -161,6 +163,7 @@ function App() {
     [create, setCreate] = useState(false),
     [toast, setToast] = useState(""),
     [query, setQuery] = useState("");
+  const serverHealth = useServerHealth(connected);
   const notify = useCallback((s: string) => setToast(s), []);
   useEffect(() => {
     if (toast) {
@@ -188,6 +191,7 @@ function App() {
           <Workspace
             key={project.id}
             project={project}
+            serverHealth={serverHealth}
             notify={notify}
             leave={() => setProject(null)}
           />
@@ -197,9 +201,9 @@ function App() {
           <header>
             <Brand />
             <div className="row">
-              <span className="connection-pill">
+              <span className="connection-pill" data-status={serverHealth} role="status">
                 <span className="dot" />
-                Server 已连接
+                {serverHealthLabel[serverHealth]}
               </span>
               <ThemeButton />
               <button
@@ -328,10 +332,12 @@ function App() {
 
 function Workspace({
   project,
+  serverHealth,
   notify,
   leave,
 }: {
   project: any;
+  serverHealth: ServerHealth;
   notify: (s: string) => void;
   leave: () => void;
 }) {
@@ -363,7 +369,6 @@ function Workspace({
     [dialog, setDialog] = useState<any>(null),
     [conflict, setConflict] = useState(false),
     [title, setTitle] = useState(project.name),
-    [connectionState, setConnectionState] = useState(true),
     [historyVersion, setHistoryVersion] = useState(0);
   const [composer, setComposer] = useState<{ id: string; mode: "image" | "speech" | "video" | "content" } | null>(null);
   const composerNode = nodes.find(node => node.id === composer?.id);
@@ -623,7 +628,6 @@ function Workspace({
         };
       }),
     }));
-    setConnectionState(true);
   }, [project.id]);
   useEffect(() => {
     let alive = true;
@@ -634,7 +638,7 @@ function Workspace({
       try {
         await refresh();
       } catch {
-        if (alive) setConnectionState(false);
+        // The shared health monitor owns connection status.
       } finally {
         busy = false;
       }
@@ -1073,9 +1077,9 @@ function Workspace({
           </span>
         </div>
         <div className="row">
-          <span className="connection-pill">
+          <span className="connection-pill" data-status={serverHealth} role="status">
             <span className="dot" />
-            {connectionState ? `${online} 个执行端在线` : "Server 连接中断"}
+            {serverHealth === 'online' ? `${online} 个执行端在线` : serverHealthLabel[serverHealth]}
           </span>
           <button
             className="icon-button"
