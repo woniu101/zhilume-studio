@@ -1,3 +1,6 @@
+import { initialProfile } from './model-selection';
+import { Select } from '../Select';
+import { useNodeTask } from './NodeTask';
 import { LanguageTools, ExecutionTarget } from './LanguageTools';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowUp, Settings2, Upload, X } from 'lucide-react';
@@ -5,13 +8,15 @@ import { api, mediaUrl, uploadAsset } from '../api';
 import type { ImageGenerationSession } from './ImageGeneration';
 import { frameLabel, videoReferences, type VideoDraft, type VideoReference } from './video-draft';
 type Asset = { id:string; kind:string; filename:string; url:string };
-type Profile = { profileId:string; workflowRevision:string; sizes:number[][]; frames:number[]; referenceLimits:Record<string,number> };
+type Profile = { readyCount?:number; identity?: {revision?:string;quantization?:string}; profileId:string; workflowRevision:string; sizes:number[][]; frames:number[]; referenceLimits:Record<string,number> };
 const modes = [['text','文生视频'],['first','首帧'],['last','尾帧'],['first-last','首尾帧'],['reference','全能参考']];
-export function VideoGeneration({ assets,value,update,session,imported,close,submit }: {
+export function VideoGeneration({ assets,value,update,session,imported,submit }: {
   assets:Asset[]; value:VideoDraft; update:(f:(d:VideoDraft)=>VideoDraft)=>void; session:ImageGenerationSession;
   imported:(a:Asset)=>Promise<void>; close:()=>void; submit:(operation:string,input:object,requestId:string,targetWorkerId?:string)=>Promise<void>;
 }) {
-  const [targetWorkerId, setTargetWorkerId] = useState('');
+  const taskRunning = useNodeTask();
+  const targetWorkerId = value.targetWorkerId || '';
+  const setTargetWorkerId = (id: string) => update(d => ({ ...d, targetWorkerId: id }));
   const [models,setModels] = useState<any[]>([]), [error,setError] = useState(''), [settings,setSettings] = useState(false);
   const [busy,setBusy] = useState(!!session.inFlight), [uploading,setUploading] = useState(''), [refresh,setRefresh] = useState(0);
   const controller = useRef<AbortController | null>(null);
@@ -19,7 +24,7 @@ export function VideoGeneration({ assets,value,update,session,imported,close,sub
   useEffect(() => { if (session.inFlight) void session.inFlight.then(() => setBusy(false),e => { setBusy(false); setError(e.message); }); return () => controller.current?.abort(); },[]);
   const edit = (patch:Partial<VideoDraft>) => update(d => ({ ...d,...patch }));
   const profiles:Profile[] = models.find(m => m.id === value.modelId)?.profiles || [];
-  const profile = value.profileId ? profiles.find(p => p.profileId === value.profileId) : profiles[0];
+  const profile = value.profileId ? profiles.find(p => p.profileId === value.profileId) : initialProfile(profiles);
   useEffect(() => { if (!value.profileId && profile) update(d => ({ ...d, profileId: profile.profileId })); }, [value.profileId, profile?.profileId]);
   const refs = videoReferences(value);
   const referenceError = refs.length > 12 ? '参考最多 12 份，请移除多余参考；已有草稿会保留。' : refs.some(r => !assets.some(a => a.id === r.assetId && a.kind === (['first','last'].includes(r.role) ? 'image' : r.role))) ? '请选择对应角色的参考素材。'
@@ -52,23 +57,23 @@ export function VideoGeneration({ assets,value,update,session,imported,close,sub
       if (asset) add(asset,slot); else void upload(e.dataTransfer.files[0],slot);
     }}>
       {selected && <img src={mediaUrl(selected.url)} alt={title} />}
-      <label>{title}<select aria-label={title} value={slot ? value[slot] : ''} onChange={e=>{ const asset=assets.find(a=>a.id===e.target.value); if (asset) add(asset,slot); }}>
+      <label>{title}<Select aria-label={title} value={slot ? value[slot] : ''} onChange={e=>{ const asset=assets.find(a=>a.id===e.target.value); if (asset) add(asset,slot); }}>
         <option value="">选择项目素材…</option>{assets.filter(a=>slot ? a.kind==='image' : ['image','video','audio'].includes(a.kind)).map(a=><option key={a.id} value={a.id}>{a.filename}</option>)}
-      </select></label><label className="speech-upload"><Upload size={14}/>上传<input aria-label={`上传${title}`} type="file" accept={slot ? 'image/*' : 'image/*,video/*,audio/*'} onChange={e=>{ void upload(e.target.files?.[0],slot); e.target.value=''; }}/></label>
+      </Select></label><label className="speech-upload"><Upload size={14}/>上传<input aria-label={`上传${title}`} type="file" accept={slot ? 'image/*' : 'image/*,video/*,audio/*'} onChange={e=>{ void upload(e.target.files?.[0],slot); e.target.value=''; }}/></label>
     </section>;
   }
   async function run() {
-    if (invalid || !profile || busy || session.inFlight) return;
+    if (taskRunning || invalid || !profile || busy || session.inFlight) return;
     const input={ modelId:value.modelId,profileId:profile.profileId,workflowRevision:profile.workflowRevision,mode:value.mode,prompt:value.prompt,width:value.width,height:value.height,frames:value.frames,steps:value.steps,seed:value.seed,includeAudio:value.includeAudio,references:refs };
     const fingerprint=JSON.stringify({input,targetWorkerId}), request=value.request?.fingerprint===fingerprint ? value.request : { id:crypto.randomUUID(),fingerprint };
     edit({ request }); setBusy(true); setError('');
-    try { session.inFlight=submit('video.generate.v1',input,request.id,targetWorkerId); await session.inFlight; update(d=>({...d,request:undefined})); close(); }
+    try { session.inFlight=submit('video.generate.v1',input,request.id,targetWorkerId); await session.inFlight; update(d=>({...d,request:undefined}));  }
     catch(e) { setError((e as Error).message); } finally { session.inFlight=undefined; setBusy(false); }
   }
   const counts:Record<string,number>={image:0,video:0,audio:0};
   return <div className="generation video-generation" onKeyDown={e=>{if(e.key==='Escape' && settings){e.stopPropagation();setSettings(false);}}}>
     <fieldset disabled={busy || !!uploading}>
-      <nav className="generation-tabs" aria-label="视频生成方式">{modes.map(([id,title])=><button key={id} aria-pressed={value.mode===id} className={value.mode===id?'active':''} onClick={()=>edit({ mode:id,modelId:id==='reference'?'minimax-h3-ref2va':'minimax-h3-fl2va',profileId:'' })}>{title}</button>)}</nav>
+      <nav className="generation-tabs" aria-label="视频生成方式">{modes.map(([id,title])=><button key={id} aria-pressed={value.mode===id} className={value.mode===id?'active':''} onClick={()=>edit({ mode:id,modelId:id==='reference'?'minimax-h3-ref2va':'minimax-h3-fl2va',profileId: value.modelId === (id==='reference'?'minimax-h3-ref2va':'minimax-h3-fl2va') ? value.profileId : '', targetWorkerId: value.modelId === (id==='reference'?'minimax-h3-ref2va':'minimax-h3-fl2va') ? value.targetWorkerId : '' })}>{title}</button>)}</nav>
       {['first','first-last'].includes(value.mode) && picker('firstFrameId','首帧图片')}
       {['last','first-last'].includes(value.mode) && picker('lastFrameId','尾帧图片')}
       {value.mode==='reference' && <>{picker()}<div className="video-reference-list">{value.references.map((r,i)=>{
@@ -76,7 +81,7 @@ export function VideoGeneration({ assets,value,update,session,imported,close,sub
         return <article className="composer-popover" key={i}>
           <header><button title="插入参考标签" onClick={()=>edit({prompt:value.prompt+tag})}>{tag}</button><span title={asset?.filename}>{asset?.filename || '素材已移除'}</span><button aria-label={`移除参考 ${i+1}`} onClick={()=>edit({references:value.references.filter((_,j)=>i!==j)})}><X size={14}/></button></header>
           {asset && (r.role==='image'?<img src={mediaUrl(asset.url)} alt={tag}/>:r.role==='video'?<video src={mediaUrl(asset.url)} controls preload="metadata"/>:<audio src={mediaUrl(asset.url)} controls preload="metadata"/>)}
-          {r.role!=='image' && <div className="generation-row"><label>起点（秒）<input aria-label={`参考 ${i+1} 起点`} type="number" min={0} max={86400} step={.1} value={r.start} onChange={e=>edit({references:value.references.map((v,j)=>i===j?{...v,start:+e.target.value}:v)})}/></label><label>片段长度<select aria-label={`参考 ${i+1} 长度`} value={r.frames} onChange={e=>edit({references:value.references.map((v,j)=>i===j?{...v,frames:+e.target.value}:v)})}>{Array.from({length:18},(_,j)=>56+j*17).filter(n=>n<=345).map(n=><option key={n} value={n} disabled={n>value.frames}>{frameLabel(n)}</option>)}</select></label></div>}
+          {r.role!=='image' && <div className="generation-row"><label>起点（秒）<input aria-label={`参考 ${i+1} 起点`} type="number" min={0} max={86400} step={.1} value={r.start} onChange={e=>edit({references:value.references.map((v,j)=>i===j?{...v,start:+e.target.value}:v)})}/></label><label>片段长度<Select aria-label={`参考 ${i+1} 长度`} value={r.frames} onChange={e=>edit({references:value.references.map((v,j)=>i===j?{...v,frames:+e.target.value}:v)})}>{Array.from({length:18},(_,j)=>56+j*17).filter(n=>n<=345).map(n=><option key={n} value={n} disabled={n>value.frames}>{frameLabel(n)}</option>)}</Select></label></div>}
           <small className="muted">{r.role==='video'?'仅参考画面；声音请单独添加音频参考。':r.role==='audio'?'播放器试听原素材，生成只使用指定片段。':'点击标签可插入提示词，按编号描述参考关系。'}</small>
           {i>0 && <button onClick={()=>edit({references:value.references.map((v,j)=>j===i-1?value.references[i]:j===i?value.references[i-1]:v)})}>上移参考（标签编号会变化）</button>}
         </article>;
@@ -86,15 +91,15 @@ export function VideoGeneration({ assets,value,update,session,imported,close,sub
       <ExecutionTarget profile={profile} value={targetWorkerId} change={setTargetWorkerId} />
       <div className="prompt-meta"><span>原始提示词直接提交</span><span>{value.prompt.length}/20000</span></div>
       {settings && <section className="composer-popover" aria-label="视频参数设置">
-        <div className="generation-row"><label>尺寸<select aria-label="视频尺寸" value={`${value.width}x${value.height}`} onChange={e=>{const [width,height]=e.target.value.split('x').map(Number);edit({width,height});}}>{[...[ [value.width,value.height] ],...(profile?.sizes||[])].filter((s,i,a)=>a.findIndex(v=>v[0]===s[0]&&v[1]===s[1])===i).map(s=><option key={s.join('x')} value={s.join('x')}>{s[0]} × {s[1]}</option>)}</select></label>
-          <label>实际时长<select aria-label="视频时长" value={value.frames} onChange={e=>edit({frames:+e.target.value})}>{[...new Set([value.frames,...(profile?.frames||[124,192,243,345])])].map(n=><option key={n} value={n}>{frameLabel(n)}</option>)}</select></label></div>
+        <div className="generation-row"><label>尺寸<Select aria-label="视频尺寸" value={`${value.width}x${value.height}`} onChange={e=>{const [width,height]=e.target.value.split('x').map(Number);edit({width,height});}}>{[...[ [value.width,value.height] ],...(profile?.sizes||[])].filter((s,i,a)=>a.findIndex(v=>v[0]===s[0]&&v[1]===s[1])===i).map(s=><option key={s.join('x')} value={s.join('x')}>{s[0]} × {s[1]}</option>)}</Select></label>
+          <label>实际时长<Select aria-label="视频时长" value={value.frames} onChange={e=>edit({frames:+e.target.value})}>{[...new Set([value.frames,...(profile?.frames||[124,192,243,345])])].map(n=><option key={n} value={n}>{frameLabel(n)}</option>)}</Select></label></div>
         <div className="generation-row"><label>采样步数<input aria-label="视频步数" type="number" min={1} max={50} value={value.steps} onChange={e=>edit({steps:Math.floor(Math.min(50,Math.max(1,+e.target.value)))})}/></label><label>随机种子<input aria-label="视频种子" type="number" min={0} max={Number.MAX_SAFE_INTEGER} value={value.seed} onChange={e=>edit({seed:Math.max(0,Math.min(Number.MAX_SAFE_INTEGER,Math.floor(+e.target.value)))})}/></label></div>
         <label className="transparency-option"><input type="checkbox" checked={value.includeAudio} onChange={e=>edit({includeAudio:e.target.checked})}/>保留生成音频</label><small className="muted">H3 联合生成音画；关闭仅导出静音，不代表减少模型推理。</small>
-        <label>执行配置<select aria-label="视频执行配置" value={profile?.profileId||''} onChange={e=>edit({profileId:e.target.value})}><option value="" disabled>暂无已登记规格</option>{profiles.map(p=><option key={p.profileId} value={p.profileId}>{p.profileId.slice(0,8)} · 图片 {p.referenceLimits.image} / 视频 {p.referenceLimits.video} / 音频 {p.referenceLimits.audio}</option>)}</select></label><button onClick={()=>setRefresh(n=>n+1)}>刷新配置</button>
+        <label>执行配置<Select aria-label="视频执行配置" value={profile?.profileId||''} onChange={e=>edit({profileId:e.target.value})}><option value="" disabled>暂无已登记规格</option>{profiles.map(p=><option key={p.profileId} value={p.profileId}>{p.identity?.revision} · {p.identity?.quantization} · {p.profileId.slice(0,8)} · 图片 {p.referenceLimits.image} / 视频 {p.referenceLimits.video} / 音频 {p.referenceLimits.audio}</option>)}</Select></label><button onClick={()=>setRefresh(n=>n+1)}>刷新配置</button>
         <small className="muted">24 FPS · MP4；参考片段在执行端核对真实长度后才提交推理。</small>
       </section>}
     </fieldset>
     {uploading && <p className="muted">上传参考素材 {uploading}</p>}{error && <p role="alert" className="error">{error}</p>}{invalid && <p role="status" className="composer-validation">{invalid}</p>}
-    <footer className="composer-toolbar"><span className="model-picker">H3 · {value.mode==='reference'?'Ref2VA':'FL2VA'}</span><button aria-label="视频参数" aria-expanded={settings} onClick={()=>setSettings(v=>!v)}><Settings2 size={15}/>{(value.frames/24).toFixed(2)}秒 / {value.width}×{value.height}</button><button className="primary generate-submit" aria-label="生成视频" disabled={!!invalid||busy||!!uploading} onClick={run}><ArrowUp size={17}/>{busy?'提交中…':'生成'}</button></footer>
+    <footer className="composer-toolbar"><span className="model-picker">H3 · {value.mode==='reference'?'Ref2VA':'FL2VA'}</span><button aria-label="视频参数" aria-expanded={settings} onClick={()=>setSettings(v=>!v)}><Settings2 size={15}/>{(value.frames/24).toFixed(2)}秒 / {value.width}×{value.height}</button><button className="primary generate-submit" aria-label="生成视频" disabled={taskRunning || !!invalid||busy||!!uploading} onClick={run}><ArrowUp size={17}/>{busy?'提交中…':'生成'}</button></footer>
   </div>;
 }

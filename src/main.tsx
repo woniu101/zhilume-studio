@@ -1,3 +1,7 @@
+import { Select } from './Select';
+import { NodeVersions } from './generation/NodeVersions';
+import { NodeTask, NodeTaskStatus, taskActive } from './generation/NodeTask';
+import { receiveResults, replaceContent, canSwitchKind, snapshot, type NodeResult } from './node-content';
 import { useServerHealth, serverHealthLabel } from "./use-server-health";
 import type { ServerHealth } from "./server-health";
 import { TaskGroupRunner } from './generation/TaskGroupRunner';
@@ -356,6 +360,8 @@ function Workspace({
     } | null>(null),
     [assets, setAssets] = useState<Record<string, any>>({}),
     [jobs, setJobs] = useState<any[]>([]),
+    [submittingNodes,setSubmittingNodes] = useState<Set<string>>(new Set()),
+    [nodeResults, setNodeResults] = useState<NodeResult[]>([]),
     [workers, setWorkers] = useState<any[]>([]),
     [library, setLibrary] = useState<any>({ items: [], folders: [] }),
     [libraryOpen, setLibraryOpen] = useState(true),
@@ -392,8 +398,7 @@ function Workspace({
       nodeId?: string;
       library?: boolean;
       position?: { x: number; y: number };
-    }>({}),
-    applying = useRef(new Set<string>());
+    }>({});
   const draftKey = `zhilume.draft.${connection.base}.${project.id}`;
   useCanvasClipboard({
     blocked: !!dialog || !!composer || conflict || !loaded,
@@ -433,7 +438,7 @@ function Workspace({
     mutate((d) => ({
       ...d,
       nodes: d.nodes.map((n) =>
-        n.id === id ? { ...n, data: { ...n.data, ...data } } : n,
+        n.id === id ? { ...n, data: ["assetId", "text", "html"].some(k => k in data) ? replaceContent(n.data, data) : { ...n.data, ...data, ...("title" in data ? {titleSource: "custom" as const} : {}) } } : n,
       ),
     }));
   }
@@ -612,9 +617,11 @@ function Workspace({
       api(`/jobs?projectId=${project.id}`),
       api("/workers"),
       api(`/projects/${project.id}/library`),
+      api(`/projects/${project.id}/node-results`),
     ]);
-    setAssets((previous) => mergeAssets(previous, values[0]));
+    setAssets((previous) => mergeAssets(previous, [...values[0], ...values[4].map((r:any) => r.output)]));
     setJobs(values[1]);
+    setNodeResults(values[4]);
     setWorkers(values[2]);
     setLibrary((previous: any) => ({
       ...values[3],
@@ -652,85 +659,28 @@ function Workspace({
   }, [refresh]);
   useEffect(() => {
     if (!loaded || blocked.current) return;
-    for (const job of jobs) {
-      if (
-        job.status !== "succeeded" ||
-        !job.output ||
-        !job.nodeId ||
-        live.current.nodes.some(
-          (n) =>
-            n.data.lastJobId === job.id ||
-            n.data.receivedJobIds?.includes(job.id),
-        ) ||
-        applying.current.has(job.id)
-      )
-        continue;
-      const source = live.current.nodes.find((n) => n.id === job.nodeId);
-      if (!source) continue;
-      applying.current.add(job.id);
-      (async () => {
-        try {
-          const text =
-            job.output.kind === "text"
-              ? await fetch(mediaUrl(job.output.url)).then((r) => {
-                  if (!r.ok) throw new Error("读取结果失败");
-                  return r.text();
-                })
-              : undefined;
-          const current = live.current.nodes.find((n) => n.id === job.nodeId);
-          if (!current) return;
-          const parent = current.parentId
-            ? live.current.nodes.find((n) => n.id === current.parentId)
-            : null;
-          const output = createNode(
-            job.output.kind,
-            {
-              x: current.position.x + (parent?.position.x || 0) + 380,
-              y: current.position.y + (parent?.position.y || 0),
-            },
-            {
-              title: `${kindNames[job.output.kind as Kind]} · ${job.simulation ? "模拟结果" : (job.operation.startsWith("image.") || job.operation === "audio.speech.v1" || job.operation === "video.generate.v1") ? "生成结果" : "处理结果"}`,
-              assetId: job.output.id,
-              text,
-              lastJobId: job.id,
-            },
-          );
-          mutate((d) => ({
-            ...d,
-            nodes: [
-              ...d.nodes.map((n) =>
-                n.id === current.id
-                  ? {
-                      ...n,
-                      data: {
-                        ...n.data,
-                        receivedJobIds: [
-                          ...(n.data.receivedJobIds || []),
-                          job.id,
-                        ],
-                      },
-                    }
-                  : n,
-              ),
-              output,
-            ],
-            edges: [
-              ...d.edges,
-              {
-                id: crypto.randomUUID(),
-                source: current.id,
-                target: output.id,
-              },
-            ],
-          }));
-        } catch (e) {
-          notify((e as Error).message);
-        } finally {
-          applying.current.delete(job.id);
-        }
-      })();
-    }
-  }, [jobs, loaded]);
+    const next = receiveResults(live.current, nodeResults);
+    if (next !== live.current) mutate(() => next);
+  }, [nodeResults, loaded]);
+  function switchNodeKind(kind: Kind) {
+    if (!composerNode || submittingNodes.has(composerNode.id) || uploadController.current || !canSwitchKind(composerNode, jobs, live.current.edges)) return;
+    const title = composerNode.data.titleSource !== "custom" ? nextNodeTitle(kind, live.current.nodes) : composerNode.data.title;
+    mutate(d => ({ ...d, nodes: d.nodes.map(n => n.id === composerNode.id ? { ...n, width: kind === 'audio' ? 320 : 280, height: undefined,
+      style: { width: kind === 'audio' ? 320 : 280, ...(kind === 'audio' ? {height:108} : {}) }, data: { ...n.data, kind, title } } : n) }));
+    setComposer({ id: composerNode.id, mode: kind === 'audio' ? 'speech' : kind === 'text' ? 'content' : kind });
+  }
+  function submissionStatus(id:string, pending:boolean) {setSubmittingNodes(previous => {const next=new Set(previous);if(pending)next.add(id);else next.delete(id);return next;});}
+  async function submitGeneration(operation: string, input: object, requestId: string, targetWorkerId?: string) {
+    if (!composerNode) return;
+    const targetId = composerNode.id;
+    submissionStatus(targetId,true);
+    try {
+      await flush();
+      await api('/jobs', 'POST', { requestId, projectId: project.id, nodeId: targetId, operation, input, targetWorkerId });
+      await refresh(); notify('任务已提交，结果将保存为当前节点的新版本');
+    } finally {submissionStatus(targetId,false);}
+  }
+
   function center() {
     const canvas = document
       .querySelector(".canvas-area")!
@@ -799,7 +749,7 @@ function Workspace({
         nodes: [
           ...d.nodes,
           createNode(asset.kind, position, {
-            title: asset.filename,
+            title: asset.filename, titleSource: "custom",
             assetId: asset.id,
             text,
           }),
@@ -884,7 +834,7 @@ function Workspace({
           x: n.position.x + (p?.x || 0) + 40,
           y: n.position.y + (p?.y || 0) + 40,
         },
-        data: { ...n.data, lastJobId: undefined, videoDraft: n.data.videoDraft ? { ...structuredClone(n.data.videoDraft), request: undefined } : undefined, speechDraft: n.data.speechDraft ? { ...structuredClone(n.data.speechDraft), request: undefined } : undefined, generationDraft: n.data.generationDraft ? { ...structuredClone(n.data.generationDraft), request: undefined } : undefined },
+        data: { ...n.data, lastJobId: undefined, languageSelection: n.data.languageSelection ? {...n.data.languageSelection,request:undefined} : undefined, videoDraft: n.data.videoDraft ? { ...structuredClone(n.data.videoDraft), request: undefined } : undefined, speechDraft: n.data.speechDraft ? { ...structuredClone(n.data.speechDraft), request: undefined } : undefined, generationDraft: n.data.generationDraft ? { ...structuredClone(n.data.generationDraft), request: undefined } : undefined },
       };
     });
     mutate((d) => ({
@@ -909,7 +859,24 @@ function Workspace({
     if (!node) return;
     try {
       if (kind === "image-generation" || kind === "speech-generation" || kind === "video-generation") {
-        setComposer({ id, mode: kind === "video-generation" ? "video" : kind === "speech-generation" ? "speech" : "image" });
+        const targetKind: Kind = kind === "video-generation" ? "video" : kind === "speech-generation" ? "audio" : "image";
+        let targetId = id;
+        if (node.data.kind !== targetKind) {
+          const parent = live.current.nodes.find(n => n.id === node.parentId);
+          const destination = createNode(targetKind, { x: node.position.x + (parent?.position.x || 0) + 360, y: node.position.y + (parent?.position.y || 0) }, {
+            title: nextNodeTitle(targetKind, live.current.nodes),
+            ...(targetKind === 'video' ? {videoDraft: videoDraft(node)} : targetKind === 'audio' ? {speechDraft: speechDraft(node)} : {generationDraft: generationDraft(node)}),
+          });
+          mutate(d => ({...d, nodes: [...d.nodes.map(n => ({...n,selected:false})), {...destination,selected:true}]}));
+          targetId = destination.id;
+          notify(`已创建${kindNames[targetKind]}节点，来源内容已保留`);
+        }
+        setComposer({ id: targetId, mode: kind === "video-generation" ? "video" : kind === "speech-generation" ? "speech" : "image" });
+        return;
+      }
+      if (kind === "retry-job" || kind === "cancel-job") {
+        const job = jobs.find(j => j.nodeId === id);
+        if (job) { await api(`/jobs/${job.id}/${kind === "retry-job" ? "retry" : "cancel"}`, "POST"); await refresh(); }
         return;
       }
       setComposer(null);
@@ -953,11 +920,6 @@ function Workspace({
         notify("已保存到项目素材库");
         return;
       }
-      if (kind === "retry-job" || kind === "cancel-job") {
-        const job = jobs.find(j => j.nodeId === id);
-        if (job) { await api(`/jobs/${job.id}/${kind === "retry-job" ? "retry" : "cancel"}`, "POST"); await refresh(); }
-        return;
-      }
       if (kind === "run") {
         const input =
           node.data.kind === "text"
@@ -978,7 +940,7 @@ function Workspace({
         });
         setTasksOpen(true);
         await refresh();
-        notify("已提交模拟任务，结果会作为新节点返回画布");
+        notify("已提交模拟任务，结果会保存到当前节点的历史版本");
       }
     } catch (e) {
       notify((e as Error).message);
@@ -993,11 +955,13 @@ function Workspace({
         ...n,
         data: {
           ...n.data,
-          receivedJobIds: [
+          versions: live.current.nodes.find(current => current.id === n.id)?.data.versions || n.data.versions,
+          contentRevision: Math.max(n.data.contentRevision || 0, live.current.nodes.find(current => current.id === n.id)?.data.contentRevision || 0) + 1,
+          receivedResultIds: [
             ...new Set([
-              ...(n.data.receivedJobIds || []),
+              ...(n.data.receivedResultIds || []),
               ...(live.current.nodes.find((current) => current.id === n.id)
-                ?.data.receivedJobIds || []),
+                ?.data.receivedResultIds || []),
             ]),
           ],
         },
@@ -1314,7 +1278,7 @@ function Workspace({
               onNodeClick={(event, node) => {
                 if (node.type !== "media" || (event.target as HTMLElement).closest("button,input,select,textarea,.node-title,.react-flow__handle")) return;
                 const empty = node.data.kind === "text" ? !String(node.data.text || "").trim() : !node.data.assetId;
-                if (empty || node.data.kind === "image") setComposer({ id: node.id, mode: node.data.kind === "video" ? "video" : node.data.kind === "audio" ? "speech" : node.data.kind === "image" ? "image" : "content" });
+                if (empty || ["image", "video", "audio", "text"].includes(node.data.kind)) setComposer({ id: node.id, mode: node.data.kind === "video" ? "video" : node.data.kind === "audio" ? "speech" : node.data.kind === "image" ? "image" : "content" });
               }}
               onPaneContextMenu={(e) => {
                 e.preventDefault();
@@ -1364,7 +1328,9 @@ function Workspace({
           </NodeContext.Provider>
           {composer && composerNode && !dialog && <LanguageProject.Provider value={project.id}><NodeComposer nodeId={composerNode.id} layout={composerNode}
             title={composer.mode === "video" ? "视频生成与参考编辑" : composer.mode === "speech" ? "语音合成" : composer.mode === "image" ? "图片生成与编辑" : `${kindNames[composerNode.data.kind as Kind]}内容`}
-            close={() => setComposer(null)}>
+            close={() => setComposer(null)} typeControl={<Select aria-label="节点内容类型" value={composerNode.data.kind} title="仅无内容、历史、连线或在途任务的空节点可切换类型" disabled={submittingNodes.has(composerNode.id) || !!uploadController.current || !canSwitchKind(composerNode,jobs,live.current.edges)} onChange={e => switchNodeKind(e.target.value as Kind)}>{kinds.map(k => <option key={k} value={k}>{kindNames[k]}</option>)}</Select>}>
+            <NodeTask.Provider value={jobs.find(j => j.nodeId === composerNode.id)}>
+            <NodeTaskStatus job={jobs.find(j => j.nodeId === composerNode.id)} cancel={() => void action(composerNode.id,"cancel-job")} retry={() => void action(composerNode.id,"retry-job")}/>
             {composer.mode === "image" ? (      <ImageGeneration key={composerNode.id} session={imageSession(composerNode.id)}
         assets={Object.values(assets)}
         value={generationDraft(composerNode)}
@@ -1378,27 +1344,26 @@ function Workspace({
           await refresh();
         }}
         close={() => setComposer(current => current?.id === composerNode.id ? null : current)}
-        submit={async (operation, input, requestId, targetWorkerId) => {
-          await flush();
-          await api("/jobs", "POST", { requestId, projectId: project.id, nodeId: composerNode.id, operation, input, targetWorkerId });
-          setTasksOpen(true); await refresh(); notify("已提交图片任务，结果会作为新节点返回画布");
-        }}
+        submit={submitGeneration}
       />
 ) : composer.mode === "video" ? <VideoGeneration key={composerNode.id} session={imageSession(composerNode.id)} assets={Object.values(assets)} value={videoDraft(composerNode)}
               update={change => { const current = live.current.nodes.find(n => n.id === composerNode.id); if (current) saveNodeDraft(current.id, { videoDraft: change(videoDraft(current)) }); }}
               imported={async asset => { setAssets(previous => ({ ...previous, [asset.id]: asset })); await api(`/projects/${project.id}/library`, "POST", { assetId: asset.id }); await refresh(); }}
               close={() => setComposer(current => current?.id === composerNode.id ? null : current)}
-              submit={async (operation, input, requestId, targetWorkerId) => { await flush(); await api("/jobs", "POST", { requestId, projectId: project.id, nodeId: composerNode.id, operation, input, targetWorkerId }); setTasksOpen(true); await refresh(); notify("已提交视频任务，结果会作为新节点返回画布"); }}
+              submit={submitGeneration}
             /> : composer.mode === "speech" ? <SpeechGeneration key={composerNode.id} session={imageSession(composerNode.id)} assets={Object.values(assets)} value={speechDraft(composerNode)}
               update={change => { const current = live.current.nodes.find(n => n.id === composerNode.id); if (current) saveNodeDraft(current.id, { speechDraft: change(speechDraft(current)) }); }}
               imported={async asset => { setAssets(previous => ({ ...previous, [asset.id]: asset })); await api(`/projects/${project.id}/library`, "POST", { assetId: asset.id }); await refresh(); }}
               close={() => setComposer(current => current?.id === composerNode.id ? null : current)}
-              submit={async (operation, input, requestId, targetWorkerId) => { await flush(); await api("/jobs", "POST", { requestId, projectId: project.id, nodeId: composerNode.id, operation, input, targetWorkerId }); setTasksOpen(true); await refresh(); notify("已提交语音任务，结果会作为新节点返回画布"); }}
-            /> : <EmptyNodeEditor key={composerNode.id} kind={composerNode.data.kind as Kind}
+              submit={submitGeneration}
+            /> : <EmptyNodeEditor key={composerNode.id} pending={value => submissionStatus(composerNode.id,value)} selection={composerNode.data.languageSelection} select={value => saveNodeDraft(composerNode.id,{languageSelection:value})} kind={composerNode.data.kind as Kind} nodeId={composerNode.id} prepare={flush} submitted={refresh}
               value={composerNode.data.textDraft ?? String(composerNode.data.text || "")}
               draft={value => saveNodeDraft(composerNode.id, { textDraft: value })}
-              save={text => { changeNode(composerNode.id, { text, html: undefined, textDraft: undefined }); setComposer(null); }}
+              save={text => { changeNode(composerNode.id, { text, assetId: undefined, html: undefined }); }}
               upload={() => { const id = composerNode.id; setComposer(null); void action(id, "upload"); }} />}
+            <NodeVersions node={composerNode} assets={assets} restore={v => changeNode(composerNode.id,{assetId:v.assetId,text:v.text,html:v.html})}
+              branch={v => mutate(d => ({...d,nodes:[...d.nodes,createNode(v.kind,{x:composerNode.position.x+360,y:composerNode.position.y},{assetId:v.assetId,text:v.text,html:v.html,title:nextNodeTitle(v.kind,d.nodes)})]}))}/>
+            </NodeTask.Provider>
           </NodeComposer></LanguageProject.Provider>}
           <div className="canvas-hint">
             自由画布 <span style={{ margin: "0 9px", opacity: 0.4 }}>/</span>{" "}
@@ -1512,12 +1477,12 @@ function Workspace({
               </button>
             </div>
             <p className="sidebar-note">
-              任务由连接的 Worker 执行，可在这里查看进度与结果。
+              查看排队、执行进度与结果。任务按能力自动分配。
             </p>
             {!jobs.length && (
               <div className="empty">
                 <History size={30} />
-                <span>选择有内容的节点，运行一次模拟任务。</span>
+                <span>选择节点并提交生成任务。</span>
               </div>
             )}
             {jobs.map((j) => (
@@ -1526,7 +1491,7 @@ function Workspace({
                   <strong style={{ fontSize: 12 }}>
                     {statusLabel[j.status] || j.status}
                   </strong>
-                  <span className="badge">{j.simulation ? "模拟" : j.operation === "video.generate.v1" ? "GPU 视频" : j.operation === "audio.speech.v1" ? "GPU 语音" : j.operation.startsWith("image.") ? "GPU 图片" : "Server 媒体处理"}</span>
+                  <span className="badge">{j.simulation ? "模拟" : j.operation.startsWith("text.") || j.operation.startsWith("prompt.") ? "语言模型" : j.operation === "video.generate.v1" ? "视频" : j.operation === "audio.speech.v1" ? "语音" : j.operation.startsWith("image.") ? "图片" : "媒体处理"}</span>
                 </div>
                 <p>
                   {({ "video.generate.v1": "视频生成", "audio.speech.v1": "语音合成", "mock.text.echo.v1": "文本回显", "mock.media.copy.v1": "素材复制", "image.generate.v1": "文生图", "image.edit.v1": "图片指令编辑", "image.reference.v1": "多图参考", "media.video.trim.v1": "视频截取", "media.audio.extract.v1": "提取音轨" } as Record<string, string>)[j.operation] || j.operation}{" "}
@@ -1708,9 +1673,9 @@ function Workspace({
       )}
       {dialog?.type === "media-tools" && assets[dialog.node.data.assetId] && <MediaTools
         asset={assets[dialog.node.data.assetId]} assets={Object.values(assets)} close={() => setDialog(null)}
-        complete={(output, replace) => {
+        complete={(output, replace, operation) => {
           setAssets(current => ({ ...current, ...Object.fromEntries(output.map(a => [a.id, a])) }));
-          if (replace) changeNode(dialog.node.id, { assetId: output[0].id, mediaSize: undefined });
+          if (replace) mutate(doc => receiveResults(doc, [{version:1,id:crypto.randomUUID(),nodeId:dialog.node.id,base:snapshot(dialog.node.data),createdAt:new Date().toISOString(),operation,output:{id:output[0].id,kind:output[0].kind as Kind}}]));
           else mutate(doc => {
             const source = doc.nodes.find(n => n.id === dialog.node.id);
             const parent = source?.parentId ? doc.nodes.find(n => n.id === source.parentId) : undefined;
@@ -1723,13 +1688,18 @@ function Workspace({
             });
             const stride = Math.max(220, ...additions.map(n => n.height || 220)) + 70;
             additions.forEach((node, i) => { node.position = { x: origin.x + sourceWidth + 100 + (i % 4) * 340, y: origin.y + Math.floor(i / 4) * stride }; });
-            return { ...doc, nodes: [...doc.nodes, ...additions], edges: [...doc.edges, ...(source ? additions.map(n => ({ id: crypto.randomUUID(), source: source.id, target: n.id })) : [])] };
+            return { ...doc, nodes: [...doc.nodes, ...additions], edges: doc.edges };
           });
           notify(`已保存 ${output.length} 份处理结果`);
         }}
         submit={async (operation, input) => {
+          let target = dialog.node.id;
+          if (operation === 'media.audio.extract.v1') {
+            const destination = createNode('audio', {x:dialog.node.position.x+360,y:dialog.node.position.y}, {title:nextNodeTitle('audio',live.current.nodes)});
+            mutate(d => ({...d,nodes:[...d.nodes,destination]})); target=destination.id;
+          }
           await flush();
-          await api("/jobs", "POST", { requestId: crypto.randomUUID(), projectId: project.id, nodeId: dialog.node.id, sourceRevision: revision.current, operation, input });
+          await api("/jobs", "POST", { requestId: crypto.randomUUID(), projectId: project.id, nodeId: target, operation, input });
           setTasksOpen(true); await refresh(); notify("已提交 Server 后台任务");
         }}
       />}
@@ -2114,14 +2084,14 @@ function AssetDialog({
       </label>
       <label>
         所在文件夹
-        <select value={folder} onChange={(e) => setFolder(e.target.value)}>
+        <Select value={folder} onChange={(e) => setFolder(e.target.value)}>
           <option value="">素材库根目录</option>
           {library.folders.map((f: any) => (
             <option value={f.id} key={f.id}>
               {f.name}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <div className="row spread">
         <span className="muted">{sizeLabel(item.asset.size)}</span>
@@ -2223,7 +2193,7 @@ function FolderDialog({
       </label>
       <label>
         移动到
-        <select value={parent} onChange={(e) => setParent(e.target.value)}>
+        <Select value={parent} onChange={(e) => setParent(e.target.value)}>
           <option value="">素材库根目录</option>
           {folders
             .filter((f) => !descendants.has(f.id))
@@ -2232,7 +2202,7 @@ function FolderDialog({
                 {f.name}
               </option>
             ))}
-        </select>
+        </Select>
       </label>
       {confirm && (
         <p className="error">

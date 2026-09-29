@@ -1,3 +1,4 @@
+import { selectOption } from './select';
 import {test,expect} from '@playwright/test';
 const base='http://127.0.0.1:4319/api/v1',headers={Authorization:'Bearer e2e-local-fixture-only'};
 test('explicit workflow binds new text while batch keeps existing inputs',async({page,request})=>{
@@ -13,16 +14,16 @@ test('explicit workflow binds new text while batch keeps existing inputs',async(
  await page.getByRole('button',{name:'批量 / 流程',exact:true}).click();
  const modal=page.getByRole('dialog');
  await expect(modal.getByRole('button',{name:'提交 2 个任务'})).toBeVisible();
- await modal.getByLabel('文本节点使用的语言模型').selectOption('fixture-language');
+ await selectOption(modal.getByLabel('文本节点使用的语言模型'), 'fixture-language');
  await modal.getByRole('button',{name:'运行流程',exact:true}).click();
- await modal.getByLabel('上游文本 → 下游文本').selectOption('text');
+ await selectOption(modal.getByLabel('上游文本 → 下游文本'), 'text');
  await page.screenshot({path:'test-results/explicit-workflow.png'});
  await modal.getByRole('button',{name:'提交 2 个任务'}).click();
  await expect.poll(()=>body?.mode).toBe('workflow');
  expect(body.tasks[1].bindings).toEqual([{from:'one',target:'text'}]);
  expect(body.tasks[1].input.text).toBe('已有原文');
  await page.getByRole('button',{name:'批量 / 流程',exact:true}).click();
- await modal.getByLabel('文本节点使用的语言模型').selectOption('fixture-language');
+ await selectOption(modal.getByLabel('文本节点使用的语言模型'), 'fixture-language');
  await modal.getByRole('button',{name:'提交 2 个任务'}).click();
  await expect.poll(()=>body?.mode).toBe('batch');
  expect(body.tasks.every((t:any)=>t.bindings.length===0)).toBe(true);

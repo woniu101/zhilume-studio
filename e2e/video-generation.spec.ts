@@ -1,3 +1,4 @@
+import { selectOption } from './select';
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 const catalog=JSON.parse(readFileSync(new URL('../src/contracts/operation-catalog.json',import.meta.url),'utf8'));
@@ -16,18 +17,18 @@ async function setup(page:any,request:any,online=true){
 test('H3 single-click composer preserves modes and drafts, exact duration and retry identity',async({page,request})=>{
   const {panel,project,asset}=await setup(page,request);
   await panel.getByRole('button',{name:'首尾帧',exact:true}).click();
-  await panel.getByLabel('首帧图片',{exact:true}).selectOption(asset.id);
-  await panel.getByLabel('尾帧图片',{exact:true}).selectOption(asset.id);
+  await selectOption(panel.getByLabel('首帧图片',{exact:true}), asset.id);
+  await selectOption(panel.getByLabel('尾帧图片',{exact:true}), asset.id);
   await panel.getByLabel('视频提示词').fill('镜头缓慢推近，海浪声。');
   await panel.getByRole('button',{name:'全能参考',exact:true}).click();
-  await panel.getByLabel('添加参考',{exact:true}).selectOption(asset.id);
+  await selectOption(panel.getByLabel('添加参考',{exact:true}), asset.id);
   await panel.getByRole('button',{name:'<Picture 1>',exact:true}).click();
   await panel.getByRole('button',{name:'视频参数',exact:true}).click();
   await expect(panel.getByLabel('视频时长')).toContainText('5.17 秒 · 124 帧');
   await page.screenshot({path:'test-results/video-generation-dark.png'});
   await panel.getByRole('button',{name:'首尾帧',exact:true}).click();
-  await expect(panel.getByLabel('首帧图片',{exact:true})).toHaveValue(asset.id);
-  await expect(panel.getByLabel('尾帧图片',{exact:true})).toHaveValue(asset.id);
+  await expect(panel.getByLabel('首帧图片',{exact:true})).toHaveAttribute('data-value', asset.id);
+  await expect(panel.getByLabel('尾帧图片',{exact:true})).toHaveAttribute('data-value', asset.id);
   const bodies:any[]=[];
   await page.route('**/api/v1/jobs',async route=>{
     if(route.request().method()!=='POST')return route.continue();bodies.push(route.request().postDataJSON());
@@ -38,7 +39,7 @@ test('H3 single-click composer preserves modes and drafts, exact duration and re
   await expect.poll(async()=>(await(await request.get(base+`/projects/${project.id}/canvas`,{headers})).json()).nodes[0].data.videoDraft?.request?.id).toBe(bodies[0].requestId);
   await page.reload();await page.getByText(project.name,{exact:true}).click();
   await page.locator('.react-flow__node[data-id="video"]').click({position:{x:40,y:35}});
-  await panel.getByRole('button',{name:'生成视频',exact:true}).click();await expect(panel).toHaveCount(0);
+  await panel.getByRole('button',{name:'生成视频',exact:true}).click();await expect(panel).toBeVisible();
   expect(bodies[0]).toEqual(bodies[1]);expect(bodies[0].operation).toBe('video.generate.v1');
   expect(bodies[0].input.references).toEqual([{role:'first',assetId:asset.id},{role:'last',assetId:asset.id}]);
 });

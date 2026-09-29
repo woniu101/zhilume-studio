@@ -1,5 +1,6 @@
 export type AudioClip = { assetId: string; start: number; end: number };
 export type SpeechDraft = {
+  targetWorkerId?: string;
   modelId: string; profileId: string; text: string; language: string; speed: number;
   speaker: AudioClip; emotionReference: AudioClip; emotionMode: string; emotionAlpha: number; emotionText: string; emotionVector: number[];
   request?: { id: string; fingerprint: string };

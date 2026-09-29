@@ -6,6 +6,8 @@ import {
   NodeResizer,
   NodeToolbar,
   useConnection,
+  useViewport,
+  useReactFlow,
   type NodeProps,
 } from "@xyflow/react";
 import {
@@ -49,6 +51,8 @@ export const NodeContext = createContext<{
   mediaSize: () => {},
 });
 export function MediaNode({ id, data, selected }: NodeProps) {
+  const viewport = useViewport(), flow = useReactFlow();
+  const screenTop = (flow.getInternalNode(id)?.internals.positionAbsolute.y || 0) * viewport.zoom + viewport.y;
   const connecting = useConnection((connection) => connection.inProgress);
   const { assets, jobs, action, checkpoint, changed, mediaSize } = useContext(NodeContext);
   const kind = data.kind as Kind;
@@ -66,7 +70,7 @@ export function MediaNode({ id, data, selected }: NodeProps) {
   const job = jobs.find((j) => j.nodeId === id);
   const active =
     job &&
-    !["succeeded", "failed", "interrupted", "cancelled"].includes(job.status);
+    !["succeeded", "failed", "interrupted", "cancelled", "blocked"].includes(job.status);
   return (
     <div
       className={`media-node kind-${kind} ${fittedMedia ? "has-media" : ""} ${selected ? "selected" : ""} ${connecting ? "is-connecting" : ""}`}
@@ -143,7 +147,7 @@ export function MediaNode({ id, data, selected }: NodeProps) {
       >
         <Plus size={13} />
       </Handle>
-      <NodeToolbar isVisible={selected} position={Position.Top} offset={38}>
+      <NodeToolbar isVisible={selected} position={Position.Top} offset={Math.min(38, screenTop - 48)}>
         <div className="node-tools">
           <button
             title={kind === "text" ? "编辑文本" : "预览"}
@@ -177,7 +181,7 @@ export function MediaNode({ id, data, selected }: NodeProps) {
           </button>
         </div>
       </NodeToolbar>
-      <div className={`node-content ${kind}`}>
+      <div className={`node-content ${kind}`} style={{position:"relative"}}>
         {kind === "text" ? (
           <p className="text-preview">
             {String(data.text || "点击输入文本，记录提示词和创作想法。")}
@@ -204,6 +208,7 @@ export function MediaNode({ id, data, selected }: NodeProps) {
             </button>
           </div>
         )}
+        {active && <div className="node-task-overlay nodrag nopan" role="status"><strong>{statusLabel[job.status] || job.status}</strong><span>{job.stage}</span>{Number.isFinite(job.progress) && <><progress value={job.progress} max={1}/><span>{Math.round(job.progress*100)}%</span></>}<button disabled={job.status === 'cancel_requested'} onClick={() => action(id,'cancel-job')}>取消任务</button></div>}
       </div>
       {asset && kind !== "text" && (
         <button
@@ -218,10 +223,10 @@ export function MediaNode({ id, data, selected }: NodeProps) {
       )}
       {job && (
         <div className="node-status">
-          <span className="badge">{job.simulation ? "模拟" : job.operation === "audio.speech.v1" ? "GPU 语音" : job.operation?.startsWith("image.") ? "GPU 图片" : "CPU 处理"}</span>
+          <span className="badge">{job.simulation ? "模拟" : job.operation === "audio.speech.v1" ? "语音" : job.operation?.startsWith("image.") ? "图片" : job.operation?.startsWith("video.") ? "视频" : job.operation?.startsWith("media.") ? "媒体处理" : "文本"}</span>
           <span title={job.error || job.stage}>{statusLabel[job.status] || job.status}{active && job.stage ? ` · ${job.stage}` : ""}</span>
           {job.error && <span className="node-job-error" title={job.error}>{job.error}</span>}
-          {["failed", "interrupted"].includes(job.status) && <button className="nodrag nopan" aria-label="重试节点任务" onClick={() => action(id, "retry-job")}>重试</button>}
+          {["failed", "interrupted", "cancelled", "blocked"].includes(job.status) && <button className="nodrag nopan" aria-label="重试节点任务" onClick={() => action(id, "retry-job")}>重试</button>}
           {active && <button className="nodrag nopan" aria-label="取消节点任务" disabled={job.status === "cancel_requested"} onClick={() => action(id, "cancel-job")}>取消</button>}
           {active && job.progress !== null
             ? ` · ${Math.round(job.progress * 100)}%`

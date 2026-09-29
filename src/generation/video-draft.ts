@@ -1,5 +1,6 @@
 export type VideoReference = { role: 'image' | 'video' | 'audio'; assetId: string; start: number; frames: number };
 export type VideoDraft = {
+  targetWorkerId?: string;
   modelId: string; profileId: string; mode: string; prompt: string; firstFrameId: string; lastFrameId: string;
   references: VideoReference[]; width: number; height: number; frames: number; steps: number; seed: number; includeAudio: boolean;
   request?: { id: string; fingerprint: string };

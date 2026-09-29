@@ -1,3 +1,4 @@
+import { Select } from './Select';
 import { useEditor, useEditorState, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Modal } from "./ui";
@@ -37,13 +38,13 @@ export function TextEditor({ html, text, save, close }: {
   const overLimit = (state?.length || 0) > 12000;
   return <Modal title="编辑文本" close={close}>
     <div className="editor-toolbar" role="toolbar" aria-label="文本格式">
-      <select aria-label="段落格式" value={state?.heading || 0} onChange={event => {
+      <Select aria-label="段落格式" value={state?.heading || 0} onChange={event => {
         const level = Number(event.target.value);
         if (level) editor?.chain().focus().setHeading({ level: level as 1 | 2 | 3 }).run();
         else editor?.chain().focus().setParagraph().run();
       }}>
         <option value={0}>正文</option><option value={1}>标题 1</option><option value={2}>标题 2</option><option value={3}>标题 3</option>
-      </select>
+      </Select>
       {formats.map(([key, label, run]) => <button key={key} type="button" aria-pressed={!!state?.active.includes(key)}
         onMouseDown={event => event.preventDefault()} onClick={run}>{label}</button>)}
       <button onMouseDown={event => event.preventDefault()} onClick={() => editor?.chain().focus().unsetAllMarks().clearNodes().run()}>清除格式</button>

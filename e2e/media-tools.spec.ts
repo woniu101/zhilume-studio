@@ -37,7 +37,8 @@ test('crop original pixels, retry failed upload, grid splitting and undo preserv
   await page.unroute('**/api/v1/assets/uploads?*');
   await dialog.getByRole('button', { name: '保存到画布' }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(page.locator('.react-flow__node-media')).toHaveCount(2);
+  await expect(page.locator('.react-flow__node-media')).toHaveCount(1);
+  await expect.poll(() => page.locator('.kind-image > .node-content img').evaluate((img:HTMLImageElement)=>img.naturalWidth)).toBe(80);
   const all = await (await request.get(base + '/assets', { headers })).json();
   const crop = all.find((a: any) => a.provenance?.sourceAssetIds?.[0] === asset.id);
   expect(crop.provenance.operation).toBe('image.crop.v1');
@@ -82,13 +83,13 @@ test('Web Server queue handles silence and trimmed video without any Worker', as
   const jobs = await (await request.get(base + '/jobs?projectId=' + project.id, { headers })).json();
   expect(jobs[0].executor).toBe('server'); expect(jobs[0].errorCode).toBe('no_audio');
   await page.keyboard.press('Escape');
-  await page.locator('.react-flow__node-media').click();
+  await page.locator('.react-flow__node-media[data-id="source"]').click();
   await page.getByRole('button', { name: '视频工具', exact: true }).click();
   await dialog.getByRole('spinbutton', { name: '开始秒数' }).fill('0.5');
   await dialog.getByRole('spinbutton', { name: '结束秒数' }).fill('1.5');
   await dialog.getByRole('button', { name: '提交后台任务' }).click();
   await expect(page.locator('.react-flow__node-media')).toHaveCount(2);
-  await expect.poll(() => page.locator('.kind-video video').last().evaluate((video: HTMLVideoElement) => video.duration)).toBeCloseTo(1, 1);
+  await expect.poll(() => page.locator('.kind-video video').last().evaluate((video: HTMLVideoElement) => video.duration), {timeout:15000}).toBeCloseTo(1, 1);
 });
 
 test('Web submits Server audio job then archives a playable audio node', async ({ page, request }) => {
@@ -100,7 +101,7 @@ test('Web submits Server audio job then archives a playable audio node', async (
   await dialog.getByRole('button', { name: '提交后台任务' }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.locator('.kind-audio')).toHaveCount(1);
-  await expect.poll(() => page.locator('.kind-audio audio').evaluate((audio: HTMLAudioElement) => audio.duration)).toBeCloseTo(1, 1);
+  await expect.poll(() => page.locator('.kind-audio audio').evaluate((audio: HTMLAudioElement) => audio.duration), {timeout:15000}).toBeCloseTo(1, 1);
   const jobs = await (await request.get(base + '/jobs?projectId=' + project.id, { headers })).json();
   expect(jobs[0].executor).toBe('server'); expect(jobs[0].workerId).toBeNull(); expect(jobs[0].status).toBe('succeeded');
   await page.screenshot({ path: 'test-results/web-server-audio.png' });

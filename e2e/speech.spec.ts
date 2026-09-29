@@ -1,3 +1,4 @@
+import { selectOption } from './select';
 import { test, expect } from '@playwright/test';
 import { readFile, readFileSync } from 'node:fs';
 import { promisify } from 'node:util';
@@ -16,7 +17,7 @@ async function setup(page: any, request: any, online = true) {
   await page.locator('.react-flow__node[data-id="speech"]').click({ position: { x: 40, y: 35 } });
   const panel = page.getByRole('region', { name: '语音合成', exact: true });
   await expect(panel).toBeVisible();
-  await panel.getByRole('combobox', { name: '音色参考', exact: true }).selectOption(asset.id);
+  await selectOption(panel.getByRole('combobox', { name: '音色参考', exact: true }), asset.id);
   await panel.getByLabel('合成文字').fill('欢迎来到织镜。');
   await panel.getByLabel('音色参考终点').fill('1.5');
   return { panel, project, asset };
@@ -25,11 +26,13 @@ test('speech drafts, reference roles, model limits and retry idempotency', async
   const { panel, project, asset } = await setup(page, request);
   await panel.getByRole('button', { name: '语音参数', exact: true }).click();
   await panel.getByLabel('语速', { exact: true }).fill('1.25');
-  await panel.getByLabel('情绪方式').selectOption('reference');
-  await panel.getByRole('combobox', { name: '情绪参考', exact: true }).selectOption(asset.id);
+  await selectOption(panel.getByLabel('情绪方式'), 'reference');
+  await selectOption(panel.getByRole('combobox', { name: '情绪参考', exact: true }), asset.id);
   await panel.getByLabel('情绪参考起点').fill('0.5');
   await panel.getByLabel('情绪参考终点').fill('2');
-  await expect(panel.locator('option[value="text"]')).toHaveJSProperty('disabled', true);
+  await panel.getByLabel('情绪方式').click();
+  await expect(page.getByRole('listbox').locator('[data-value="text"]')).toHaveAttribute('aria-disabled', 'true');
+  await page.keyboard.press('Escape');
   await expect(panel.getByRole('button', { name: '合成语音' })).toBeEnabled();
   await page.screenshot({ path: 'test-results/speech-dark.png' });
   const bodies: any[] = [];
@@ -45,7 +48,7 @@ test('speech drafts, reference roles, model limits and retry idempotency', async
   await page.locator('.react-flow__node[data-id="speech"]').click({ position: { x: 40, y: 35 } });
   await expect(panel.getByLabel('合成文字')).toHaveValue('欢迎来到织镜。');
   await panel.getByRole('button', { name: '合成语音' }).click();
-  await expect(panel).toHaveCount(0);
+  await expect(panel).toBeVisible();
   expect(bodies[0]).toEqual(bodies[1]); expect(bodies[0].operation).toBe('audio.speech.v1');
   expect(bodies[0].input.speed).toBe(1.25);
   expect(bodies[0].input.speaker).toEqual({ assetId: asset.id, start: 0, end: 1.5 });
@@ -55,7 +58,7 @@ test('offline speech remains editable and hides when canvas loses focus', async 
   const { panel } = await setup(page, request, false);
   await expect(panel.getByRole('status')).toContainText('暂无已启用 IndexTTS');
   await expect(panel.getByRole('button', { name: '合成语音' })).toBeDisabled();
-  await panel.getByLabel('情绪方式').selectOption('vector');
+  await selectOption(panel.getByLabel('情绪方式'), 'vector');
   await panel.getByLabel('高兴强度').fill('0.65');
   await page.evaluate(() => document.documentElement.dataset.theme = 'light');
   await page.screenshot({ path: 'test-results/speech-light.png' });

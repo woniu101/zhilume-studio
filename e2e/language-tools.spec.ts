@@ -1,3 +1,4 @@
+import { selectOption } from './select';
 import { test, expect } from '@playwright/test';
 const base='http://127.0.0.1:4319/api/v1',headers={Authorization:'Bearer e2e-local-fixture-only'};
 test('prompt suggestion requires explicit apply and never changes original on failure',async({page,request})=>{
@@ -10,6 +11,7 @@ test('prompt suggestion requires explicit apply and never changes original on fa
   await page.addInitScript(()=>sessionStorage.setItem('zhilume.session','e2e-local-fixture-only'));
   await page.goto('/');await page.getByText(project.name,{exact:true}).click();await page.locator('.react-flow__node[data-id="image"]').click();
   const panel=page.getByRole('region',{name:'图片生成与编辑'}),prompt=panel.getByLabel('提示词',{exact:true});
+  await panel.locator('.language-tools > summary').click();
   await panel.getByRole('button',{name:'优化提示词',exact:true}).click();
   await expect(panel.getByLabel('建议稿')).toHaveValue('更清晰的建议描述');await expect(prompt).toHaveValue('原始描述');
   await page.screenshot({path:'test-results/prompt-suggestion-review.png'});
@@ -28,8 +30,9 @@ test('Worker language model exposes execution target and failed retry uses a new
   await page.addInitScript(()=>sessionStorage.setItem('zhilume.session','e2e-local-fixture-only'));
   await page.goto('/');await page.getByText(project.name,{exact:true}).click();await page.locator('.react-flow__node[data-id="image"]').click();
   const panel=page.getByRole('region',{name:'图片生成与编辑'});
-  await panel.getByText('执行端（默认自动分配）',{exact:true}).click();
-  await panel.getByLabel('指定执行端').selectOption('worker-b');
+  await panel.locator('.language-tools > summary').click();
+  await panel.locator('.language-tools .execution-target > summary').click();
+  await selectOption(panel.getByLabel('指定执行端'), 'worker-b');
   await panel.getByRole('button',{name:'优化提示词',exact:true}).click();
   await expect(panel.getByRole('alert')).toHaveText('执行端测试失败');
   await panel.getByRole('button',{name:'优化提示词',exact:true}).click();

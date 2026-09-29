@@ -4,8 +4,8 @@ import { X, Maximize2, Minimize2 } from "lucide-react";
 import "./generation.css";
 
 /** A screen-sized editor anchored to a canvas node; not part of its drag geometry. */
-export function NodeComposer({ nodeId, title, layout, close, children }: {
-  nodeId: string; title: string; layout: unknown; close: () => void; children: ReactNode;
+export function NodeComposer({ nodeId, title, layout, close, children, typeControl }: {
+  nodeId: string; title: string; layout: unknown; close: () => void; children: ReactNode; typeControl?: ReactNode;
 }) {
   const panel = useRef<HTMLElement>(null);
   const viewport = useViewport();
@@ -43,10 +43,10 @@ export function NodeComposer({ nodeId, title, layout, close, children }: {
   useEffect(() => {
     const outside = (event: Event) => {
       const target = event.target as HTMLElement;
-      if (target.closest?.(".asset-card")) return; // Keep the destination open while dragging a library reference.
+      if (target.closest?.(".asset-card, [data-editor-overlay]")) return; // Keep the destination open while dragging a library reference.
       if (!panel.current?.contains(target) && !getNode()?.contains(target)) close();
     };
-    const key = (event: KeyboardEvent) => { if (event.key === "Escape") { event.preventDefault(); close(); } };
+    const key = (event: KeyboardEvent) => { if ((event.target as HTMLElement).closest?.("[data-editor-overlay]")) return; if (event.key === "Escape") { event.preventDefault(); close(); } };
     document.addEventListener("pointerdown", outside, true);
     document.addEventListener("focusin", outside);
     document.addEventListener("keydown", key);
@@ -59,7 +59,7 @@ export function NodeComposer({ nodeId, title, layout, close, children }: {
   return <section ref={panel} className="node-composer nodrag nopan nowheel" role="region" aria-label={title}
     style={{ left: placement.left, top: placement.top, width: placement.width, maxHeight: placement.maxHeight, visibility: placement.visible ? "visible" : "hidden" }}
     onKeyDown={event => { if (event.key !== "Escape") event.stopPropagation(); }}>
-    <header><span>{title}</span><div><button className="icon-button" aria-label={expanded ? "还原编辑区" : "展开编辑区"} onClick={() => setExpanded(v => !v)}>{expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button><button className="icon-button" aria-label="收起编辑区" onClick={close}><X size={15} /></button></div></header>
+    <header>{typeControl || <span>{title}</span>}<div><button className="icon-button" aria-label={expanded ? "还原编辑区" : "展开编辑区"} onClick={() => setExpanded(v => !v)}>{expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button><button className="icon-button" aria-label="收起编辑区" onClick={close}><X size={15} /></button></div></header>
     {children}
   </section>;
 }

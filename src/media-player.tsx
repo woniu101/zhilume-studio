@@ -1,3 +1,4 @@
+import { Select } from './Select';
 import {
   useEffect,
   useId,
@@ -379,7 +380,7 @@ export function MediaPlayer({
           <div className="player-actions">
             <label className="rate-label">
               <span className="sr-only">播放速度</span>
-              <select
+              <Select
                 aria-label="播放速度"
                 value={rate}
                 onChange={(event) => {
@@ -393,7 +394,7 @@ export function MediaPlayer({
                     {value}×
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
             <div className="volume-control">
               <button

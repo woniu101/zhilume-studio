@@ -12,7 +12,7 @@ const labels: Record<Operation, string> = { "image.crop.v1": "裁剪", "image.gr
 
 export function MediaTools({ asset, assets, close, complete, submit }: {
   asset: Asset; assets: Asset[]; close: () => void;
-  complete: (assets: Asset[], replace: boolean) => void;
+  complete: (assets: Asset[], replace: boolean, operation:Operation) => void;
   submit: (operation: VideoOperation, input: { assetId: string; start: number; end: number }) => Promise<void>;
 }) {
   const [operation, setOperation] = useState<Operation>(asset.kind === "image" ? "image.crop.v1" : "media.video.trim.v1");
@@ -24,14 +24,14 @@ export function MediaTools({ asset, assets, close, complete, submit }: {
   const nativeJob = useRef<string | null>(null);
   const [retrySync, setRetrySync] = useState(false);
   const [busy, setBusy] = useState(false), [status, setStatus] = useState(""), [progress, setProgress] = useState(0), [error, setError] = useState("");
-  const [results, setResults] = useState<Result[]>([]), [replace, setReplace] = useState(false);
+  const [results, setResults] = useState<Result[]>([]), [replace, setReplace] = useState(true);
   const [collagePreview, setCollagePreview] = useState("");
   const controller = useRef<AbortController | null>(null), retained = useRef<Result[]>([]);
   const previewController = useRef<AbortController | null>(null);
   const drag = useRef<{ x: number; y: number } | null>(null);
   const isImage = asset.kind === "image", desktop = !!window.zhilumeDesktop?.media;
 
-  const canReplace = results.length === 1 && results[0].file.type.startsWith(asset.kind + "/");
+  const canReplace = ["image.crop.v1", "media.video.trim.v1"].includes(operation) && results.length === 1 && results[0].file.type.startsWith(asset.kind + "/");
   const field = (key: keyof ImageParameters, value: number | string) => setParams(p => ({ ...p, [key]: value }));
   useEffect(() => {
     if (!isImage && !desktop) api("/capabilities").then(list => setServerReady(list.some((c: any) => c.id === operation && c.ready))).catch(() => setServerReady(false));
@@ -118,7 +118,7 @@ export function MediaTools({ asset, assets, close, complete, submit }: {
             throw new Error(result.error.message);
           }
           setRetrySync(false); await media.dispose(id); nativeJob.current = null;
-          complete([result.asset], false); close(); return;
+          complete([result.asset], operation === "media.video.trim.v1", operation); close(); return;
         } finally { unsubscribe(); abort.signal.removeEventListener("abort", cancel); }
 
       }
@@ -141,7 +141,7 @@ export function MediaTools({ asset, assets, close, complete, submit }: {
         const result = results[i];
         if (!result.asset) result.asset = { ...await uploadAsset(result.file, abort.signal, p => setProgress((i + p) / results.length), result.provenance), dimensions: result.dimensions };
       }
-      complete(results.map(r => r.asset!), canReplace && replace); close();
+      complete(results.map(r => r.asset!), canReplace && replace, operation); close();
     } catch (e) { setError(`${abort.signal.aborted ? "已取消保存" : (e as Error).message}。处理结果仍保留在此窗口，可重试保存或下载。`); }
     finally { setBusy(false); controller.current = null; }
   }
@@ -194,8 +194,8 @@ export function MediaTools({ asset, assets, close, complete, submit }: {
       </>}
       {!!results.length && <>
         <div className="media-tool-results">{results.map((r, i) => <div key={i}>{r.file.type.startsWith("image/") ? <img src={r.url} alt={r.file.name} /> : r.file.type.startsWith("video/") ? <video src={r.url} controls /> : <audio src={r.url} controls />}<a href={r.url} download={r.file.name}>下载 {r.file.name}</a></div>)}</div>
-        {canReplace && <label className="media-replace-option"><input type="checkbox" checked={replace} onChange={e => setReplace(e.target.checked)} disabled={busy} />替换当前节点（原素材保留，可撤销）</label>}
-        <p className="muted">默认生成新节点。保存失败时结果会留在此窗口；关闭窗口将释放尚未保存的结果。</p>
+        {canReplace && <label className="media-replace-option"><input type="checkbox" checked={replace} onChange={e => setReplace(e.target.checked)} disabled={busy} />更新当前节点（原内容保留在历史版本）</label>}
+        <p className="muted">裁剪默认更新当前节点并保留历史；拼图与切分另建节点。保存失败可在此窗口重试。</p>
       </>}
       {status && <p role="status">{status}</p>}{busy && <progress max={1} value={progress} />}
       {error && <p role="alert" className="media-tool-error">{error}{retrySync && "。结果保留在本机，重试同步不会重新转码；关闭窗口会释放结果。"}</p>}

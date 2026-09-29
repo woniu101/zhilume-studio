@@ -1,3 +1,5 @@
+import type { LanguageSelection } from './generation/model-selection';
+import type { ContentVersion } from './node-content';
 import type { VideoDraft } from "./generation/video-draft";
 import type { Node, Edge } from "@xyflow/react";
 import type { SpeechDraft } from "./generation/speech-draft";
@@ -6,15 +8,20 @@ export type Kind = "text" | "image" | "video" | "audio";
 export type MediaData = {
   kind: Kind;
   title: string;
+  titleSource?: "automatic" | "custom";
+  contentSchemaVersion?: 1;
   text?: string;
   html?: string;
   textDraft?: string;
+  languageSelection?: LanguageSelection;
   generationDraft?: ImageDraft;
   speechDraft?: SpeechDraft;
   videoDraft?: VideoDraft;
   assetId?: string;
+  contentRevision?: number;
+  versions?: ContentVersion[];
   lastJobId?: string;
-  receivedJobIds?: string[];
+  receivedResultIds?: string[];
   mediaSize?: { assetId: string; width: number; height: number };
 };
 export type CanvasNode = Node<MediaData>;
@@ -49,7 +56,7 @@ export function createNode(
       width: kind === "audio" ? 320 : 280,
       ...(kind === "audio" ? { height: 108 } : {}),
     },
-    data: { kind, title: `${kindNames[kind]}节点`, ...data },
+    data: { kind, contentSchemaVersion: 1, contentRevision: 0, titleSource: "automatic", title: `${kindNames[kind]}节点`, ...data },
   };
 }
 export function cleanDocument(

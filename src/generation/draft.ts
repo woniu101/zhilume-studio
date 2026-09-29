@@ -1,4 +1,5 @@
 export type ImageDraft = {
+  targetWorkerId?: string;
   operation: string; modelId: string; profileId: string; prompt: string; negative: string;
   sizeMode: "ratio" | "custom"; refs: string[]; format: string; width: number; height: number; steps: string; seed: string;
   request?: { fingerprint: string; id: string; seed: number };

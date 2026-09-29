@@ -1,3 +1,4 @@
+import { selectOption } from './select';
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
@@ -29,13 +30,13 @@ test('generation preserves inputs across models, orders references and retries w
   await expect(dialog.getByLabel('提示词', { exact: true })).toHaveValue('把两张图融合为水彩插画');
   await dialog.getByRole('button', { name: '多图参考', exact: true }).click();
   await dialog.getByRole('button', { name: '添加参考素材' }).click();
-  await dialog.getByLabel('添加参考图').selectOption(assets[1].id);
+  await selectOption(dialog.getByLabel('添加参考图'), assets[1].id);
   await dialog.getByRole('button', { name: '将参考图 2 向前移动' }).click();
-  await dialog.getByLabel('模型', { exact: true }).selectOption('qwen-image-2512');
+  await selectOption(dialog.getByLabel('模型', { exact: true }), 'qwen-image-2512');
   await expect(dialog.getByRole('status')).toContainText('不支持当前操作');
   await expect(dialog.getByRole('button', { name: '提交生成' })).toBeDisabled();
   await expect(dialog.locator('.generation-references li')).toHaveCount(2);
-  await dialog.getByLabel('模型', { exact: true }).selectOption('qwen-image-2.1');
+  await selectOption(dialog.getByLabel('模型', { exact: true }), 'qwen-image-2.1');
   await expect(dialog.getByRole('button', { name: '提交生成' })).toBeEnabled();
   await page.screenshot({ path: 'test-results/generation-dark.png' });
   const bodies: any[] = [];
@@ -53,7 +54,7 @@ test('generation preserves inputs across models, orders references and retries w
   await page.getByRole('button', { name: '图片生成与编辑', exact: true }).click();
   await expect(dialog.getByLabel('提示词', { exact: true })).toHaveValue('把两张图融合为水彩插画');
   await dialog.getByRole('button', { name: '提交生成' }).click();
-  await expect(dialog).toHaveCount(0);
+  await expect(dialog).toBeVisible();
   expect(bodies).toHaveLength(2);
   expect(bodies[0]).toEqual(bodies[1]);
   expect(bodies[0].operation).toBe('image.reference.v1');
@@ -148,7 +149,7 @@ test('reference upload and library drag save to the project without creating can
   await expect(dialog.getByLabel('提示词', { exact: true })).toHaveValue('重启后保留参考顺序');
   await expect(dialog.locator('.generation-references li').nth(1)).toContainText('portrait.png');
   await expect(page.locator('.react-flow__node')).toHaveCount(2);
-  await expect(dialog.getByLabel('模型', { exact: true })).toHaveValue('qwen-image-2.1');
+  await expect(dialog.getByLabel('模型', { exact: true })).toHaveAttribute('data-value', 'qwen-image-2.1');
   await page.screenshot({ path: 'test-results/generation-persistent-references.png' });
 });
 
@@ -173,8 +174,9 @@ test('compact composer keeps nested controls open, maps reference roles and resp
   let limit = 2;
   await page.route('**/api/v1/image-models', route => route.fulfill({ json: models.map(m => ({ ...m, profiles: m.profiles.map(p => ({ ...p, maxReferences: m.id === 'qwen-image-2.1' ? limit : 0 })) })) }));
   const { project, assets, dialog } = await setup(page, request);
+  await dialog.getByRole('button', { name: '多图参考', exact: true }).click();
   await dialog.getByRole('button', { name: '添加参考素材' }).click();
-  await dialog.getByLabel('添加参考图').selectOption(assets[1].id);
+  await selectOption(dialog.getByLabel('添加参考图'), assets[1].id);
   await expect(dialog.getByRole('button', { name: '添加参考素材' })).toBeDisabled();
   const cards = dialog.locator('.generation-references li');
   await cards.nth(1).dragTo(cards.nth(0));
@@ -208,7 +210,7 @@ test('image parameters are compact and adding references requests an explicit mo
   const { assets, dialog } = await setup(page, request);
   await dialog.getByRole('button', { name: '移除参考图 1' }).click();
   await dialog.getByRole('button', { name: '文生图', exact: true }).click();
-  await dialog.getByLabel('模型', { exact: true }).selectOption('qwen-image-2512');
+  await selectOption(dialog.getByLabel('模型', { exact: true }), 'qwen-image-2512');
   await dialog.getByRole('button', { name: '输出参数', exact: true }).click();
   await expect(dialog.getByLabel('透明背景')).toBeDisabled();
   await dialog.getByRole('button', { name: '16:9', exact: true }).click();
@@ -218,10 +220,11 @@ test('image parameters are compact and adding references requests an explicit mo
   await page.evaluate(() => document.documentElement.dataset.theme = 'light');
   await expect(dialog.getByRole('button', { name: '4:3', exact: true })).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await page.screenshot({ path: 'test-results/composer-output-light.png' });
+  await dialog.getByRole('button', { name: '指令编辑', exact: true }).click();
   await dialog.getByRole('button', { name: '添加参考素材' }).click();
-  await dialog.getByLabel('添加参考图').selectOption(assets[1].id);
-  await expect(dialog.getByLabel('模型', { exact: true })).toHaveValue('qwen-image-2512');
+  await selectOption(dialog.getByLabel('添加参考图'), assets[1].id);
+  await expect(dialog.getByLabel('模型', { exact: true })).toHaveAttribute('data-value', 'qwen-image-2512');
   await dialog.getByRole('button', { name: '切换至 Qwen 2.1' }).click();
-  await expect(dialog.getByLabel('模型', { exact: true })).toHaveValue('qwen-image-2.1');
+  await expect(dialog.getByLabel('模型', { exact: true })).toHaveAttribute('data-value', 'qwen-image-2.1');
   await expect(dialog.getByLabel('提示词', { exact: true })).toHaveValue('把两张图融合为水彩插画');
 });
