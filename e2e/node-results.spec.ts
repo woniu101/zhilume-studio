@@ -50,6 +50,7 @@ test('in-place results, persistent versions, keyboard themes, empty type switch 
   await page.getByRole('button',{name:'另存为新节点'}).click();await expect(page.locator('.react-flow__node-media')).toHaveCount(2);
   await page.keyboard.press('Escape');
   await panel.getByRole('button',{name:'收起编辑区'}).click();await node.click();
+  await page.getByRole('button',{name:'更多节点操作'}).click();
   await page.getByRole('button',{name:'视频生成与参考编辑',exact:true}).click();
   await expect(page.locator('.kind-video')).toHaveCount(1);await expect(page.locator('.kind-image')).toHaveCount(2);
   await expect(page.getByRole('region',{name:'视频生成与参考编辑'})).toBeVisible();
@@ -65,15 +66,23 @@ test('text generation uses Server archived results and retains an independent pr
     await page.addInitScript(()=>sessionStorage.setItem('zhilume.session','e2e-local-fixture-only'));
     await page.goto('/');await page.getByText(project.name,{exact:true}).click();await page.locator('[data-id="text"]').click();
     const panel=page.locator('.node-composer');
+    await panel.getByRole('button',{name:'生成文本',exact:true}).click();
     await panel.getByLabel('文本内容',{exact:true}).fill('写一段正文');
     const models=await(await request.get(base+'/language/models',{headers})).json(),model=models.find((m:any)=>m.model==='node-text');
     await selectOption(panel.getByLabel('语言模型',{exact:true}),model.profileId);
-    await panel.getByRole('button',{name:'生成文本',exact:true}).click();
+    await panel.locator('footer').getByRole('button',{name:'生成文本',exact:true}).click();
     await expect(page.locator('[data-id="text"] .text-preview')).toHaveText('这是完成的生成正文。',{timeout:12000});
     await expect(panel.getByLabel('文本内容',{exact:true})).toHaveValue('写一段正文');
     await expect(page.locator('.react-flow__node-media')).toHaveCount(1);
     const ledger=await(await request.get(base+`/projects/${project.id}/node-results`,{headers})).json();expect(ledger).toHaveLength(1);
     expect(ledger[0].output.text).toBe('这是完成的生成正文。');
+    await panel.getByRole('button',{name:'编辑正文',exact:true}).click();
+    await expect(panel.getByLabel('文本内容',{exact:true})).toHaveValue('这是完成的生成正文。');
+    await panel.getByLabel('文本内容',{exact:true}).fill('待保存正文');
+    await panel.getByRole('button',{name:'生成文本',exact:true}).click();
+    await expect(panel.getByLabel('文本内容',{exact:true})).toHaveValue('写一段正文');
+    await panel.getByRole('button',{name:'编辑正文',exact:true}).click();
+    await expect(panel.getByLabel('文本内容',{exact:true})).toHaveValue('待保存正文');
     await expect.poll(async()=>(await(await request.get(base+`/projects/${project.id}/canvas`,{headers})).json()).nodes[0].data.languageSelection.profileId).toBe(model.profileId);
   } finally {provider.closeAllConnections();await new Promise<void>(r=>provider.close(()=>r()));}
 });

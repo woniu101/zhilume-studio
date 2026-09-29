@@ -1,4 +1,5 @@
-import { createContext, useContext, useEffect } from "react";
+import {FloatingPanel} from './overlays';
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { MediaPlayer } from "./media-player";
 import {
   Handle,
@@ -17,9 +18,6 @@ import {
   AudioLines,
   Upload,
   Expand,
-  Bookmark,
-  Copy,
-  Trash2,
   Pencil,
   Replace,
   Plus,
@@ -147,29 +145,13 @@ export function MediaNode({ id, data, selected }: NodeProps) {
         <Plus size={13} />
       </Handle>
       <NodeToolbar isVisible={selected} position={Position.Top} offset={Math.min(38, screenTop - 48)}>
-        <div className="node-tools">
-          <button
-            title={kind === "text" ? "编辑文本" : "预览"}
-            onClick={() => action(id, kind === "text" ? "edit" : "preview")}
-          >
-            {kind === "text" ? <Pencil size={13} /> : <Expand size={13} />}
-          </button>
-          {kind !== "audio" && <button aria-label="视频生成与参考编辑" disabled={active} onClick={() => action(id, "video-generation")}><Sparkles size={13} />视频</button>}
-          {(kind === "audio" || kind === "text") && <button aria-label="语音合成" disabled={active} onClick={() => action(id, "speech-generation")}><Sparkles size={13} />语音</button>}
-          {(kind === "text" || kind === "image") && <button aria-label="图片生成与编辑" title="图片生成与编辑" disabled={active} onClick={() => action(id, "image-generation")}><Sparkles size={13} />生成</button>}
-          {asset && (kind === "image" || kind === "video") && <button aria-label={kind === "image" ? "图片工具" : "视频工具"} title={kind === "image" ? "图片工具" : "视频工具"} onClick={() => action(id, "media-tools")}><Scissors size={13} />工具</button>}
-          <button title="保存到素材库" onClick={() => action(id, "library")}>
-            <Bookmark size={13} />
-          </button>
-          <button title="复制节点" onClick={() => action(id, "duplicate")}>
-            <Copy size={13} />
-          </button>
-          <button title="重命名" onClick={() => action(id, "rename")}>
-            <Pencil size={13} />
-          </button>
-          <button title="删除节点" onClick={() => action(id, "delete")}>
-            <Trash2 size={13} />
-          </button>
+        <div className="node-tools" data-node-id={id}>
+          <button title={kind==='text'?'编辑文本':'预览'} onClick={()=>action(id,kind==='text'?'edit':'preview')}>{kind==='text'?<Pencil size={13}/>:<Expand size={13}/>}</button>
+          {kind==='image' && <button aria-label="图片生成与编辑" disabled={active} onClick={()=>action(id,'image-generation')}><Sparkles size={13}/>生成图片</button>}
+          {kind==='video' && <button aria-label="视频生成与参考编辑" disabled={active} onClick={()=>action(id,'video-generation')}><Sparkles size={13}/>生成视频</button>}
+          {kind==='audio' && <button aria-label="语音合成" disabled={active} onClick={()=>action(id,'speech-generation')}><Sparkles size={13}/>合成语音</button>}
+          {asset && (kind==='image'||kind==='video') && <button aria-label={kind==='image'?'图片工具':'视频工具'} onClick={()=>action(id,'media-tools')}><Scissors size={13}/>工具</button>}
+          <NodeMore kind={kind} active={active} action={name=>action(id,name)}/>
         </div>
       </NodeToolbar>
       <div className={`node-content ${kind}`} style={{position:"relative"}}>
@@ -241,4 +223,16 @@ export function GroupNode({ data, selected }: NodeProps) {
       <span>{String(data.title)}</span>
     </div>
   );
+}
+
+function NodeMore({kind,active,action}:{kind:Kind;active:boolean;action:(name:string)=>void}) {
+  const anchor=useRef<HTMLButtonElement>(null),[open,setOpen]=useState(false);
+  const run=(name:string)=>{setOpen(false);action(name);};
+  return <><button ref={anchor} aria-label="更多节点操作" aria-expanded={open} onClick={()=>setOpen(v=>!v)}>更多 ···</button>
+    {open && <FloatingPanel anchor={anchor} title="节点操作" close={()=>setOpen(false)}><div className="node-action-menu">
+      {kind!=='video' && kind!=='audio' && <button aria-label="视频生成与参考编辑" disabled={active} onClick={()=>run('video-generation')}>生成视频</button>}
+      {kind==='text' && <><button aria-label="图片生成与编辑" disabled={active} onClick={()=>run('image-generation')}>生成图片</button><button aria-label="语音合成" disabled={active} onClick={()=>run('speech-generation')}>合成语音</button></>}
+      <button onClick={()=>run('library')}>保存到素材库</button><button onClick={()=>run('duplicate')}>复制节点</button><button onClick={()=>run('rename')}>重命名</button><button onClick={()=>run('delete')}>删除节点</button>
+    </div></FloatingPanel>}
+  </>;
 }

@@ -13,6 +13,7 @@ export type MediaData = {
   text?: string;
   html?: string;
   textDraft?: string;
+  textEditDraft?: string;
   languageSelection?: LanguageSelection;
   generationDraft?: ImageDraft;
   speechDraft?: SpeechDraft;

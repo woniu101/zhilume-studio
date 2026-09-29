@@ -12,7 +12,7 @@ function optionsFrom(children: ReactNode): Option[] {
   });
 }
 /** Theme-controlled, keyboard accessible single-value selector shared by all editors. */
-export function Select({ children, value, onChange, className = '', disabled, 'aria-label': label, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+export function Select({ children, value, onChange, className = '', displayValue, disabled, 'aria-label': label, ...props }: SelectHTMLAttributes<HTMLSelectElement> & {displayValue?:ReactNode}) {
   const options = optionsFrom(children), current = String(value ?? ''), id = useId();
   const trigger = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false), [index, setIndex] = useState(0);
@@ -42,7 +42,7 @@ export function Select({ children, value, onChange, className = '', disabled, 'a
   return <>
     <button ref={trigger} id={props.id} title={props.title} type="button" role="combobox" data-value={current} className={`select-trigger ${className}`} disabled={disabled} aria-label={textLabel} aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? id : undefined}
       onClick={() => setOpen(!open)} onKeyDown={e => { if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) { e.preventDefault(); setOpen(true); } }}>
-      <span>{options.find(o => o.value === current)?.label || '请选择…'}</span><span aria-hidden="true">⌄</span>
+      <span>{displayValue ?? (options.find(o => o.value === current)?.label || '请选择…')}</span><span aria-hidden="true">⌄</span>
     </button>
     {open && createPortal(<div ref={menu} id={id} role="listbox" aria-label={textLabel} tabIndex={-1} aria-activedescendant={`${id}-${index}`} data-editor-overlay className="select-options" style={{ position: 'fixed', ...rect }}
       onKeyDown={e => {

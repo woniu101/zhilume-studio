@@ -1306,7 +1306,8 @@ function Workspace({
             </ReactFlow>
             </ConnectionPreview.Provider>
           </NodeContext.Provider>
-          {composer && composerNode && !dialog && <LanguageProject.Provider value={project.id}><NodeComposer nodeId={composerNode.id} layout={composerNode}
+          {composer && composerNode && !dialog && <LanguageProject.Provider value={project.id}><NodeComposer nodeId={composerNode.id} layout={composerNode} headerActions={<NodeVersions node={composerNode} assets={assets} restore={v => changeNode(composerNode.id,{assetId:v.assetId,text:v.text,html:v.html})}
+              branch={v => mutate(d => ({...d,nodes:[...d.nodes,createNode(v.kind,{x:composerNode.position.x+360,y:composerNode.position.y},{assetId:v.assetId,text:v.text,html:v.html,title:nextNodeTitle(v.kind,d.nodes)})]}))}/>}
             title={composer.mode === "video" ? "视频生成与参考编辑" : composer.mode === "speech" ? "语音合成" : composer.mode === "image" ? "图片生成与编辑" : `${kindNames[composerNode.data.kind as Kind]}内容`}
             close={() => setComposer(null)} typeControl={<Select aria-label="节点内容类型" value={composerNode.data.kind} title="仅无内容、历史、连线或在途任务的空节点可切换类型" disabled={submittingNodes.has(composerNode.id) || !!uploadController.current || !canSwitchKind(composerNode,jobs,live.current.edges)} onChange={e => switchNodeKind(e.target.value as Kind)}>{kinds.map(k => <option key={k} value={k}>{kindNames[k]}</option>)}</Select>}>
             <NodeTask.Provider value={jobs.find(j => j.nodeId === composerNode.id)}>
@@ -1337,12 +1338,12 @@ function Workspace({
               close={() => setComposer(current => current?.id === composerNode.id ? null : current)}
               submit={submitGeneration}
             /> : <EmptyNodeEditor key={composerNode.id} pending={value => submissionStatus(composerNode.id,value)} selection={composerNode.data.languageSelection} select={value => saveNodeDraft(composerNode.id,{languageSelection:value})} kind={composerNode.data.kind as Kind} nodeId={composerNode.id} prepare={flush} submitted={refresh}
-              value={composerNode.data.textDraft ?? String(composerNode.data.text || "")}
+              content={String(composerNode.data.text || "")} editDraft={composerNode.data.textEditDraft} editBody={value=>saveNodeDraft(composerNode.id,{textEditDraft:value})}
+              value={composerNode.data.textDraft ?? ""}
               draft={value => saveNodeDraft(composerNode.id, { textDraft: value })}
               save={text => { changeNode(composerNode.id, { text, assetId: undefined, html: undefined }); }}
               upload={() => { const id = composerNode.id; setComposer(null); void action(id, "upload"); }} />}
-            <NodeVersions node={composerNode} assets={assets} restore={v => changeNode(composerNode.id,{assetId:v.assetId,text:v.text,html:v.html})}
-              branch={v => mutate(d => ({...d,nodes:[...d.nodes,createNode(v.kind,{x:composerNode.position.x+360,y:composerNode.position.y},{assetId:v.assetId,text:v.text,html:v.html,title:nextNodeTitle(v.kind,d.nodes)})]}))}/>
+
             </NodeTask.Provider>
           </NodeComposer></LanguageProject.Provider>}
           <div className="canvas-hint">

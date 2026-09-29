@@ -1,3 +1,4 @@
+import {ComposerLayout, ComposerPrompt, OfflineNotice, submitLabel} from './ComposerLayout';
 import { FloatingPanel, PanelAction } from '../overlays';
 import { initialProfile } from './model-selection';
 import { Select } from '../Select';
@@ -123,7 +124,7 @@ export function ImageGeneration({ assets, value, update, session, imported, subm
   const reorder = (from: number, to: number) => setRefs(current => {
     const next = [...current], [id] = next.splice(from, 1); next.splice(to, 0, id); return next;
   });
-  return <div className="generation" onKeyDown={event => {
+  return <ComposerLayout onKeyDown={event => {
     if (event.key === "Escape" && (menu || preview)) { event.stopPropagation(); setMenu(null); setPreview(null); }
   }} onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "copy"; }}
     onDrop={e => {
@@ -134,9 +135,21 @@ export function ImageGeneration({ assets, value, update, session, imported, subm
         if (images.some(a => a.id === id)) addReferences([id]);
         else setError("仅支持拖入图片参考素材");
       } else if (e.dataTransfer.files.length) void upload(Array.from(e.dataTransfer.files));
-    }}>
-    <div className="generation-tabs" role="group" aria-label="图片操作">{operations.map(op => <button key={op.id} aria-pressed={operation === op.id} className={operation === op.id ? "active" : ""} disabled={busy || !!uploading} onClick={() => edit({ operation: op.id })}>{op.name.replace("图片指令编辑", "指令编辑")}</button>)}</div>
-    <fieldset disabled={busy || !!uploading}>
+    }}
+    disabled={busy || !!uploading}
+    modes={<div className="generation-tabs" role="group" aria-label="图片操作">{operations.map(op => <button key={op.id} aria-pressed={operation === op.id} className={operation === op.id ? "active" : ""} disabled={busy || !!uploading} onClick={() => edit({ operation: op.id })}>{op.name.replace("图片指令编辑", "指令编辑")}</button>)}</div>}
+    actions={<><LanguageTools value={prompt} apply={v => edit({ prompt: v })} purpose="qwen" context={{ operation }} referenceAssetIds={refs} /><span className="character-count">{prompt.length}/12000</span></>}
+    status={<>{uploading && <p className="muted">正在上传 {uploading}</p>}
+    {notice && <p className="muted composer-notice">{notice}</p>}
+    {error && <p role="alert" className="error">{error}</p>}
+    {invalid && <div className="composer-validation" role="status">{invalid}{!model.operations.includes(operation) && <button onClick={() => { edit({ modelId: "qwen-image-2.1", profileId: "" }); setNotice("已切换至 Qwen Image 2.1，原输入已保留。"); }}>切换至 Qwen 2.1</button>}{format === "rgba" && !model.formats.includes(format) && <button onClick={() => edit({ format: "png" })}>使用普通 PNG</button>}</div>}{!invalid && !error && <OfflineNotice profile={profile}/>}</>}
+    footer={<>
+      <Select className="model-picker" displayValue={<><i className="model-dot" data-ready={(profile?.readyCount || 0)>0}/>{model.name}</>} aria-label="模型" disabled={busy || !!uploading} value={modelId} onChange={e => edit({ modelId: e.target.value, profileId: "" })}>{models.map(m => <option key={m.id} value={m.id}>{m.name}{m.profiles.length ? ` · ${m.profiles.reduce((count,p) => count+(p.readyCount || 0),0)} 端在线` : " · 未配置"}</option>)}</Select>
+      <button ref={outputAnchor} aria-label="输出参数" aria-expanded={menu === "output"} disabled={busy || !!uploading} onClick={() => toggle("output")}>{generate ? `${width} × ${height}` : "跟随基准图"}{format === "rgba" ? " · 透明" : ""}<ChevronDown size={13} /></button>
+      <button ref={advancedAnchor} aria-label="更多参数" aria-expanded={menu === "advanced"} disabled={busy || !!uploading} onClick={() => toggle("advanced")}><Settings2 size={16} /></button>
+      <button className="primary generate-submit" aria-label="提交生成" title={taskRunning ? "当前节点任务尚未结束" : invalid || "生成到当前节点"} disabled={taskRunning || busy || !!uploading || !!invalid} onClick={run}>{busy ? "提交中…" : <><ArrowUp size={18} /><span>{submitLabel(profile)}</span></>}</button>
+    </>}>
+
       {(!generate || refs.length > 0) && <div className="reference-strip">
         <ol className="generation-references">{refs.map((id, i) => {
           const asset = images.find(a => a.id === id);
@@ -162,10 +175,7 @@ export function ImageGeneration({ assets, value, update, session, imported, subm
         <p className="muted">{referenceProfile ? `当前执行配置最多 ${referenceLimit} 张` : `离线可准备最多 ${referenceLimit} 张，提交时按在线配置校验`}。拖动卡片可排序，第一张决定参考输出比例。</p>
       </FloatingPanel>}
       {preview && <FloatingPanel anchor={previewAnchor} title="参考图片预览" wide close={() => setPreview(null)}><div className="reference-preview checkerboard"><img src={mediaUrl(images.find(a => a.id === preview)?.url || "")} alt="参考图大图" /></div></FloatingPanel>}
-      <textarea className="composer-prompt" aria-label="提示词" rows={3} maxLength={12000} value={prompt} onChange={e => edit({ prompt: e.target.value })} placeholder={generate ? "描述你想生成的画面…" : "说明保留什么、修改什么，或如何组合参考图片…"} />
-      <LanguageTools value={prompt} apply={v => edit({ prompt: v })} purpose="qwen" context={{ operation }} referenceAssetIds={refs} />
-      <ExecutionTarget profile={profile} value={targetWorkerId} change={setTargetWorkerId} />
-      <div className="prompt-meta"><span>{generate ? "文字描述画面" : "参考顺序与提示词一起保存"}</span><span>{prompt.length}/12000</span></div>
+      <ComposerPrompt aria-label="提示词" rows={3} maxLength={12000} value={prompt} onChange={e => edit({ prompt: e.target.value })} placeholder={generate ? "描述你想生成的画面…" : "说明保留什么、修改什么，或如何组合参考图片…"} />
       {menu === "output" && <FloatingPanel anchor={outputAnchor} title="输出参数设置" close={() => setMenu(null)} disabled={busy || !!uploading}>
         {generate ? <>
           <div className="ratio-grid" role="group" aria-label="画面比例">{ratios.map(([key, w, h]) => <button key={key} aria-pressed={preset === key} disabled={!ratioSize(key, maxSize)} onClick={() => chooseSize(key)}><i style={{ width: 22 * Math.min(w / h, 1), height: 22 * Math.min(h / w, 1) }} /><span>{key}</span></button>)}<button aria-pressed={preset === "custom"} onClick={() => edit({ sizeMode: "custom" })}>自定义</button></div>
@@ -176,19 +186,10 @@ export function ImageGeneration({ assets, value, update, session, imported, subm
       </FloatingPanel>}
       {menu === "advanced" && <FloatingPanel anchor={advancedAnchor} title="更多参数设置" close={() => setMenu(null)} disabled={busy || !!uploading}>
         <div className="generation-row"><label>执行配置<Select aria-label="执行配置" value={profile?.profileId || ""} onChange={e => edit({ profileId: e.target.value })}><option value="" disabled>暂无已登记规格</option>{model.profiles.map(p => <option key={p.profileId} value={p.profileId}>{p.identity?.revision} · {p.identity?.quantization || p.workflowRevision} · {p.readyCount || 0} 端 · {p.profileId.slice(0,8)}</option>)}</Select></label><button onClick={refresh} disabled={loading}>{loading ? "刷新中…" : "刷新"}</button></div>
+      <ExecutionTarget profile={profile} value={targetWorkerId} change={setTargetWorkerId} />
         <label>反向提示词<textarea aria-label="反向提示词" rows={2} maxLength={12000} value={negative} onChange={e => edit({ negative: e.target.value })} /></label>
         <div className="generation-row"><label>步数<input aria-label="步数" type="number" min={1} max={100} value={steps} placeholder={String(profile?.defaultSteps || "默认")} onChange={e => edit({ steps: e.target.value })} /></label><label>随机种子<input aria-label="随机种子" type="number" min={0} value={seed} placeholder="自动随机" onChange={e => edit({ seed: e.target.value })} /></label></div>
       </FloatingPanel>}
-    </fieldset>
-    {uploading && <p className="muted">正在上传 {uploading}</p>}
-    {notice && <p className="muted composer-notice">{notice}</p>}
-    {error && <p role="alert" className="error">{error}</p>}
-    {invalid && <div className="composer-validation" role="status">{invalid}{!model.operations.includes(operation) && <button onClick={() => { edit({ modelId: "qwen-image-2.1", profileId: "" }); setNotice("已切换至 Qwen Image 2.1，原输入已保留。"); }}>切换至 Qwen 2.1</button>}{format === "rgba" && !model.formats.includes(format) && <button onClick={() => edit({ format: "png" })}>使用普通 PNG</button>}</div>}
-    <footer className="composer-toolbar">
-      <Select className="model-picker" aria-label="模型" disabled={busy || !!uploading} value={modelId} onChange={e => edit({ modelId: e.target.value, profileId: "" })}>{models.map(m => <option key={m.id} value={m.id}>{m.name}{m.profiles.length ? ` · ${m.profiles.reduce((count,p) => count+(p.readyCount || 0),0)} 端在线` : " · 未配置"}</option>)}</Select>
-      <button ref={outputAnchor} aria-label="输出参数" aria-expanded={menu === "output"} disabled={busy || !!uploading} onClick={() => toggle("output")}>{generate ? `${width} × ${height}` : "跟随基准图"}{format === "rgba" ? " · 透明" : ""}<ChevronDown size={13} /></button>
-      <button ref={advancedAnchor} aria-label="更多参数" aria-expanded={menu === "advanced"} disabled={busy || !!uploading} onClick={() => toggle("advanced")}><Settings2 size={16} /></button>
-      <button className="primary generate-submit" aria-label="提交生成" title={taskRunning ? "当前节点任务尚未结束" : invalid || "生成到当前节点"} disabled={taskRunning || busy || !!uploading || !!invalid} onClick={run}>{busy ? "提交中…" : <><ArrowUp size={18} /><span>生成</span></>}</button>
-    </footer>
-  </div>;
+
+  </ComposerLayout>;
 }

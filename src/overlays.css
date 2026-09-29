@@ -9,3 +9,6 @@
 .floating-panel .suggestion-review > small,.floating-panel .suggestion-review > div { grid-column:1/-1; }
 .floating-panel .suggestion-review textarea { min-height:180px; }
 @media(max-width:640px){.floating-panel .suggestion-review{grid-template-columns:1fr;}}
+
+.node-action-menu { display:grid; gap:4px; }
+.node-action-menu button { justify-content:flex-start; border:0; background:transparent; }
