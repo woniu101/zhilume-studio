@@ -98,7 +98,7 @@ app.whenReady().then(() => {
     minWidth: 850,
     minHeight: 620,
     backgroundColor: "#141414",
-    title: "Zhilume Studio",
+    title: "Zhilume Studio · 织镜",
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, "preload.cjs"),

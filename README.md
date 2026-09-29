@@ -1,6 +1,8 @@
 # Zhilume Studio
 
-织镜创作画布。React + TypeScript + React Flow + Tiptap，共用 Web 和 Electron 界面。当前为 **0.12.0 初版开发**，本轮配套 Server 0.9.0 / Worker 0.8.0。需要调整时直接重构，不保留历史开发版兼容层。
+织镜创作画布。React + TypeScript + React Flow + Tiptap，共用 Web 和 Electron 界面。当前为 **0.14.1 初版开发**，本轮配套 Server 0.12.0 / Worker 0.12.1。需要调整时直接重构，不保留历史开发版兼容层。
+
+最新 EXE 固定为 `release/win-unpacked/Zhilume Studio.exe`，执行 `npm run pack` 直接更新该目录；应用数据保留在用户数据目录。
 
 ## 图片生成与编辑
 
