@@ -17,7 +17,6 @@ import {
   AudioLines,
   Upload,
   Expand,
-  Play,
   Bookmark,
   Copy,
   Trash2,
@@ -154,14 +153,6 @@ export function MediaNode({ id, data, selected }: NodeProps) {
             onClick={() => action(id, kind === "text" ? "edit" : "preview")}
           >
             {kind === "text" ? <Pencil size={13} /> : <Expand size={13} />}
-          </button>
-          <button
-            title="运行模拟任务"
-            disabled={active}
-            onClick={() => action(id, "run")}
-          >
-            <Play size={13} />
-            模拟
           </button>
           {kind !== "audio" && <button aria-label="视频生成与参考编辑" disabled={active} onClick={() => action(id, "video-generation")}><Sparkles size={13} />视频</button>}
           {(kind === "audio" || kind === "text") && <button aria-label="语音合成" disabled={active} onClick={() => action(id, "speech-generation")}><Sparkles size={13} />语音</button>}

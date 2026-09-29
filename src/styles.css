@@ -47,12 +47,16 @@ textarea,
 select {
   font: inherit;
 }
+a {
+  outline-offset: 3px;
+}
+/* Keep form focus indicators inside scrollable editors and clipped cards. */
 button,
-a,
 input,
 textarea,
-select {
-  outline-offset: 3px;
+select,
+[contenteditable=true] {
+  outline-offset: -2px;
 }
 button:focus-visible,
 a:focus-visible {

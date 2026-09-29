@@ -12,7 +12,6 @@
 .generation .select-trigger, .generation input { padding: 7px 9px; }
 .generation textarea { resize: vertical; }
 .generation .composer-prompt { min-height: 104px; border: 0; background: transparent; padding: 8px 2px; font-size: 14px; line-height: 1.65; }
-.generation .composer-prompt:focus-visible { outline: 1px solid var(--accent); outline-offset: 3px; }
 .generation p { margin: 0; line-height: 1.6; }
 .generation .muted, .prompt-meta { font-size: 12px; color: var(--muted); }
 .prompt-meta { display: flex; justify-content: space-between; }

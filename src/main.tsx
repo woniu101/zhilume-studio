@@ -920,28 +920,6 @@ function Workspace({
         notify("已保存到项目素材库");
         return;
       }
-      if (kind === "run") {
-        const input =
-          node.data.kind === "text"
-            ? { text: node.data.text }
-            : { assetId: node.data.assetId };
-        if (!Object.values(input)[0]) throw new Error("请先添加节点内容");
-        await flush();
-        await api("/jobs", "POST", {
-          requestId: crypto.randomUUID(),
-          projectId: project.id,
-          nodeId: id,
-          sourceRevision: revision.current,
-          operation:
-            node.data.kind === "text"
-              ? "mock.text.echo.v1"
-              : "mock.media.copy.v1",
-          input,
-        });
-        setTasksOpen(true);
-        await refresh();
-        notify("已提交模拟任务，结果会保存到当前节点的历史版本");
-      }
     } catch (e) {
       notify((e as Error).message);
     }
@@ -1566,7 +1544,6 @@ function Workspace({
             <>
               {[
                 ["编辑 / 预览", "preview"],
-                ["运行模拟任务", "run"],
                 ["保存到素材库", "library"],
                 ["复制节点", "duplicate"],
                 ["重命名", "rename"],

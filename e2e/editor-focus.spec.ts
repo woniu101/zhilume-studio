@@ -1,0 +1,50 @@
+import {test, expect, type Locator} from '@playwright/test';
+import {selectOption} from './select';
+const base='http://127.0.0.1:4319/api/v1',headers={Authorization:'Bearer e2e-local-fixture-only'};
+
+async function expectVisibleFocus(control: Locator) {
+  await control.page().keyboard.press("Tab");
+  await control.focus();
+  await expect(control).toBeFocused();
+  const result=await control.evaluate(element=>{
+    const style=getComputedStyle(element),r=element.getBoundingClientRect();
+    const expansion=Math.max(0,parseFloat(style.outlineWidth)+parseFloat(style.outlineOffset));
+    const ring={left:r.left-expansion,right:r.right+expansion,top:r.top-expansion,bottom:r.bottom+expansion};
+    const clipped=[];
+    for(let parent=element.parentElement;parent;parent=parent.parentElement){
+      const css=getComputedStyle(parent),box=parent.getBoundingClientRect();
+      if(css.overflowX!=='visible'&&(ring.left<box.left-1||ring.right>box.right+1))clipped.push(parent.className);
+      if(css.overflowY!=='visible'&&(ring.top<box.top-1||ring.bottom>box.bottom+1))clipped.push(parent.className);
+    }
+    return {visible:style.outlineStyle!=='none'&&parseFloat(style.outlineWidth)>0,clipped};
+  });
+  expect(result).toEqual({visible:true,clipped:[]});
+}
+
+test('form focus remains visible and all node types omit simulation controls',async({page,request})=>{
+  const project=await(await request.post(base+'/projects',{headers,data:{name:'焦点验收 '+Date.now()}})).json();
+  await request.put(base+`/projects/${project.id}/canvas`,{headers,data:{schemaVersion:1,baseRevision:0,viewport:{x:0,y:0,zoom:1},nodes:[{id:'target',type:'media',style:{width:280},position:{x:380,y:70},data:{kind:'image',title:'图片1',titleSource:'automatic',contentRevision:0,contentSchemaVersion:1}}],edges:[]}});
+  await page.goto('/');
+  await expectVisibleFocus(page.getByLabel('访问凭证'));
+  await page.evaluate(()=>sessionStorage.setItem('zhilume.session','e2e-local-fixture-only'));
+  await page.reload();await page.getByText(project.name,{exact:true}).click();
+  const node=page.locator('.react-flow__node[data-id="target"]'),panel=page.locator('.node-composer');
+  await node.click();
+  for(const [kind,label] of [['image','提示词'],['video','视频提示词'],['audio','合成文字'],['text','文本内容']]) {
+    await selectOption(panel.getByRole('combobox',{name:'节点内容类型'}),kind);
+    for(const theme of ['dark','light']) {
+      await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
+      await expectVisibleFocus(panel.getByRole('combobox',{name:'节点内容类型'}));
+      if(kind==='image')await expectVisibleFocus(panel.getByRole('button',{name:'文生图',exact:true}));
+      await expectVisibleFocus(panel.getByRole('textbox',{name:label,exact:true}));
+      await page.screenshot({path:`test-results/focus-${kind}-${theme}.png`});
+    }
+    await expect(page.getByRole('button',{name:'模拟',exact:true})).toHaveCount(0);
+    await expect(page.getByRole('button',{name:'运行模拟任务',exact:true})).toHaveCount(0);
+    await panel.getByRole('button',{name:'收起编辑区'}).click();
+    await node.click({button:'right'});
+    await expect(page.locator('.menu')).toBeVisible();
+    await expect(page.locator('.menu')).not.toContainText('模拟');
+    await page.keyboard.press('Escape');await node.click();
+  }
+});
