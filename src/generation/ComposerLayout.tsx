@@ -6,7 +6,7 @@ export function ComposerLayout({modes, actions, status, footer, children, disabl
 }) {
   return <div {...events} className={`generation composer-layout ${className}`}>
     {modes && <div className="composer-modes">{modes}</div>}
-    <fieldset className="composer-body" disabled={disabled}>{children}</fieldset>
+    <div className="composer-body"><fieldset disabled={disabled}>{children}</fieldset></div>
     {actions && <div className="composer-actions">{actions}</div>}
     {status && <div className="composer-status">{status}</div>}
     <footer className="composer-toolbar">{footer}</footer>

@@ -1,3 +1,4 @@
+import {ReferenceCard} from './ReferenceCard';
 import {ComposerLayout, ComposerPrompt, OfflineNotice, submitLabel} from './ComposerLayout';
 import { FloatingPanel, PanelAction } from '../overlays';
 import { initialProfile } from './model-selection';
@@ -49,7 +50,7 @@ export function SpeechGeneration({ assets, value, update, session, imported, sub
   const invalid = clipError('speaker') || (value.emotionMode === 'reference' ? clipError('emotionReference') : '') ||
     (!value.text.trim() ? '输入要合成的文字。' : '') ||
     (value.text.length > (profile?.maxTextCharacters || 1000) ? '文字超过当前执行配置上限。' : '') ||
-    (!profile ? '暂无已启用 IndexTTS 的在线 Worker，可先准备文字和参考音频。' : '') ||
+    (!profile ? '尚未配置 IndexTTS 执行规格，可先准备文字和参考音频。' : '') ||
     (profile && !profile.emotionModes.includes(value.emotionMode) ? '当前配置未启用此情绪模式，请调整或更换配置。' : '') ||
     (profile && !profile.languages.includes(value.language) ? '当前配置不支持此语言。' : '') ||
     (value.emotionMode === 'text' && !value.emotionText.trim() ? '请输入情绪描述。' : '');
@@ -66,21 +67,23 @@ export function SpeechGeneration({ assets, value, update, session, imported, sub
   }
   function reference(role: 'speaker' | 'emotionReference', title: string) {
     const clip = value[role], asset = audio.find(a => a.id === clip.assetId);
-    return <section className="speech-reference composer-popover" aria-label={title} onDragOver={e => { e.preventDefault(); e.stopPropagation(); }} onDrop={e => {
-      e.preventDefault(); e.stopPropagation(); if (busy || uploading) return;
-      const id = e.dataTransfer.getData('application/x-zhilume-asset');
-      if (audio.some(a => a.id === id)) edit({ [role]: { assetId: id, start: 0, end: 10 } });
-      else if (e.dataTransfer.files[0]) void upload(role, e.dataTransfer.files[0]); else setError('此区域仅接受音频参考');
-    }}>
-      <PanelAction title={title} label={`${title} · ${asset?.filename || "选择或上传"}`} wide disabled={busy || !!uploading}><div className="generation-row"><label>{title}<Select aria-label={title} value={clip.assetId} onChange={e => edit({ [role]: { assetId: e.target.value, start: 0, end: 10 } })}><option value="">选择项目音频…</option>{audio.map(a => <option key={a.id} value={a.id}>{a.filename}</option>)}</Select></label>
+    const controls=<PanelAction title={title} label={asset ? "替换 / 片段" : `${title} · 选择或上传`} wide disabled={busy || !!uploading}><div className="generation-row"><label>{title}<Select aria-label={title} value={clip.assetId} onChange={e => edit({ [role]: { assetId: e.target.value, start: 0, end: 10 } })}><option value="">选择项目音频…</option>{audio.map(a => <option key={a.id} value={a.id}>{a.filename}</option>)}</Select></label>
         <label className="speech-upload"><Upload size={14} />上传<input aria-label={`上传${title}`} type="file" accept="audio/wav,audio/mpeg,audio/flac,audio/ogg,audio/mp4" onChange={e => { void upload(role, e.target.files?.[0]); e.target.value = ''; }} /></label></div>
       {asset && <audio controls preload="metadata" aria-label={`试听${title}原素材`} src={mediaUrl(asset.url)} onLoadedMetadata={e => {
         const duration = e.currentTarget.duration;
         if (Number.isFinite(duration) && clip.start === 0 && clip.end === 10 && duration < 10) update(d => d[role].assetId === asset.id ? { ...d, [role]: { ...d[role], end: Math.floor(duration * 1000) / 1000 } } : d);
       }} />}
       <div className="generation-row"><label>起点（秒）<input aria-label={`${title}起点`} type="number" min={0} step={.1} value={clip.start} onChange={e => edit({ [role]: { ...clip, start: +e.target.value } })} /></label><label>终点（秒）<input aria-label={`${title}终点`} type="number" min={0} step={.1} value={clip.end} onChange={e => edit({ [role]: { ...clip, end: +e.target.value } })} /></label></div>
-      <small className="muted">合成仅使用指定片段（1–30 秒）；播放器试听原素材。建议选清晰、单人、无背景音乐的人声。</small></PanelAction>
-      {asset && <audio className="speaker-audition" controls preload="metadata" aria-label={`试听${title}`} src={mediaUrl(asset.url)}/> }
+      <small className="muted">合成仅使用指定片段（1–30 秒）；播放器试听原素材。建议选清晰、单人、无背景音乐的人声。</small></PanelAction>;
+    return <section className="speech-reference" aria-label={title} onDragOver={e => { e.preventDefault(); e.stopPropagation(); }} onDrop={e => {
+      e.preventDefault(); e.stopPropagation(); if (busy || uploading) return;
+      const id = e.dataTransfer.getData('application/x-zhilume-asset');
+      if (audio.some(a => a.id === id)) edit({ [role]: { assetId: id, start: 0, end: 10 } });
+      else if (e.dataTransfer.files[0]) void upload(role, e.dataTransfer.files[0]); else setError('此区域仅接受音频参考');
+    }}>
+      <div className="reference-cards"><ReferenceCard empty={!clip.assetId} asset={asset} title={title} detail={asset ? `${clip.start.toFixed(2)}–${clip.end.toFixed(2)} 秒 · 参考片段` : undefined} remove={()=>edit({[role]:{assetId:'',start:0,end:10}})}>{controls}</ReferenceCard></div>
+
+
     </section>;
   }
   async function run() {
@@ -100,8 +103,8 @@ export function SpeechGeneration({ assets, value, update, session, imported, sub
       {value.emotionMode === 'vector' && <div className="speech-emotions">{model.emotionLabels.map((label,i) => <label key={label}>{label} {value.emotionVector[i].toFixed(2)}<input aria-label={`${label}强度`} type="range" min={0} max={1} step={.05} value={value.emotionVector[i]} onChange={e => edit({ emotionVector: value.emotionVector.map((n,j) => i === j ? +e.target.value : n) })} /></label>)}</div>}
       {value.emotionMode !== 'follow' && <label>情绪影响 {value.emotionAlpha.toFixed(2)}<input aria-label="情绪影响" type="range" min={0} max={1} step={.05} value={value.emotionAlpha} onChange={e => edit({ emotionAlpha: +e.target.value })} /></label>}
       </PanelAction><span className="character-count">{value.text.length}/{profile?.maxTextCharacters || 1000}</span></>}
-    status={<>{uploading && <p className="muted">参考音频上传中 {uploading}</p>}{error && <p className="error" role="alert">{error}</p>}{invalid && <p className="composer-validation" role="status">{invalid}</p>}{!invalid && !error && <OfflineNotice profile={profile}/>}</>}
-    footer={<><span className="model-picker">IndexTTS 2.5</span><button ref={settingsAnchor} aria-label="语音参数" aria-expanded={settings} onClick={() => setSettings(v => !v)}><Settings2 size={16} />{value.speed.toFixed(2)}× · WAV</button><button className="primary generate-submit" aria-label="合成语音" disabled={taskRunning || !!invalid || busy || !!uploading} onClick={run}><ArrowUp size={17} />{busy ? '提交中…' : submitLabel(profile,'合成')}</button></>}>
+    status={<>{uploading && <p className="muted">参考音频上传中 {uploading}</p>}{error && <p className="error" role="alert">{error}</p>}{invalid && profile && value.text.trim() && value.speaker.assetId && <p className="composer-validation" role="status">{invalid}</p>}{!profile && <p role="status" className="muted">尚未配置 IndexTTS 执行规格</p>}{!error && <OfflineNotice profile={profile}/>}</>}
+    footer={<><span className="model-picker">IndexTTS 2.5</span><button ref={settingsAnchor} aria-label="语音参数" aria-expanded={settings} onClick={() => setSettings(v => !v)}><Settings2 size={16} />{value.speed.toFixed(2)}× · WAV</button><button className="primary generate-submit" aria-label="合成语音" title={invalid || "合成到当前节点"} disabled={taskRunning || !!invalid || busy || !!uploading} onClick={run}><ArrowUp size={17} />{busy ? '提交中…' : submitLabel(profile,'合成')}</button></>}>
 
       {reference('speaker','音色参考')}
       <ComposerPrompt aria-label="合成文字" maxLength={1000} value={value.text} onChange={e => edit({ text: e.target.value })} placeholder="输入要合成的文字…" />

@@ -61,7 +61,7 @@ test('speech drafts, reference roles, model limits and retry idempotency', async
 });
 test('offline speech remains editable and hides when canvas loses focus', async ({ page, request }) => {
   const { panel } = await setup(page, request, false);
-  await expect(panel.getByRole('status')).toContainText('暂无已启用 IndexTTS');
+  await expect(panel.getByRole('status')).toContainText('尚未配置 IndexTTS');
   await expect(panel.getByRole('button', { name: '合成语音' })).toBeDisabled();
   await panel.getByRole('button',{name:/情绪 ·/}).click();
   await selectOption(page.getByLabel('情绪方式'), 'vector');

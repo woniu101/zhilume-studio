@@ -2,11 +2,12 @@
 .node-composer > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; color: var(--muted); font-size: 12px; }
 .node-composer > header > div { display: flex; gap: 4px; }
 .node-composer > header .icon-button { width: 26px; height: 26px; padding: 4px; }
-.generation { display: flex; flex-direction:column; min-height:0; gap: 12px; }
+.generation { display: flex; flex-direction:column; min-height:0; gap: 8px; }
 .node-composer > header, .generation > footer { flex-shrink:0; }
 .node-composer > .generation { flex:1; overflow:hidden; }
-.composer-layout > .composer-body { flex:1 1 auto; overflow:auto; overscroll-behavior:contain; min-height:60px; padding:3px; }
+.composer-layout > .composer-body { flex:1 1 auto; overflow:auto; overscroll-behavior:contain; min-height:0; padding:3px; isolation:isolate; }
 .composer-modes, .composer-actions, .composer-status { flex-shrink:0; }
+.composer-body > fieldset { min-inline-size:0; }
 .composer-actions { display:flex; align-items:center; gap:8px; min-height:26px; }
 .composer-actions .panel-action { border:0; padding:3px 0; font-size:12px; }
 .character-count { margin-left:auto; color:var(--muted); font-size:11px; white-space:nowrap; }
@@ -16,7 +17,7 @@
 .composer-modes .generation-tabs button { border-color:transparent; background:transparent; padding:5px 10px; }
 .composer-modes .generation-tabs button[aria-pressed=true] { background:var(--hover); color:var(--accent); }
 .speaker-audition { width:100%; height:32px; }
-@container(max-width:480px) {
+@container(max-width:400px) {
   .composer-toolbar { display:grid !important; grid-template-columns:minmax(0,1fr) auto auto; }
   .composer-toolbar > .model-picker, .composer-toolbar > .select-trigger { grid-column:1/-1; max-width:100%; width:100%; }
   .composer-toolbar > .generate-submit { grid-column:3; }
@@ -125,3 +126,21 @@
 
 .model-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--muted); margin-right:7px; vertical-align:middle; }
 .model-dot[data-ready=true] { background:var(--accent); }
+
+/* Reference previews stay in the creative surface; only detailed editing opens a panel. */
+.reference-cards { display:flex; gap:8px; overflow-x:auto; align-items:flex-start; padding:2px; }
+.reference-card { flex:0 0 160px; min-width:0; display:grid; gap:6px; padding:8px; border:1px solid var(--border); background:var(--panel); border-radius:10px; font-size:11px; }
+.reference-card[data-kind=audio] { flex-basis:240px; }
+.reference-card header { display:flex; align-items:center; gap:6px; }
+.reference-card header strong { flex:1; min-width:0; font-weight:500; }
+.reference-card header button { padding:2px; border:0; background:transparent; }
+.reference-card img, .reference-card video { width:100%; height:76px; object-fit:contain; border-radius:6px; }
+.reference-card audio { width:100%; height:32px; }
+.reference-card .reference-filename { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; color:var(--muted); }
+.reference-card .reference-controls { display:flex; flex-wrap:wrap; gap:5px; }
+.reference-card .reference-controls button { padding:3px 6px; font-size:11px; }
+.reference-adders { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.reference-adders .panel-action { min-height:48px; border-style:dashed; }
+.reference-empty { padding:2px; }
+.composer-toolbar > .select-trigger { flex:1; width:auto; min-width:0; text-align:left; }
+.composer-actions { position:relative; background:var(--bg); }

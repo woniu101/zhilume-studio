@@ -1,3 +1,4 @@
+import {ReferenceCard} from './ReferenceCard';
 import {ComposerLayout, ComposerPrompt, OfflineNotice, submitLabel} from './ComposerLayout';
 import { FloatingPanel, PanelAction } from '../overlays';
 import { initialProfile } from './model-selection';
@@ -5,7 +6,7 @@ import { Select } from '../Select';
 import { useNodeTask } from './NodeTask';
 import { LanguageTools, ExecutionTarget } from './LanguageTools';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Settings2, Upload, X } from 'lucide-react';
+import { ArrowUp, Settings2, Upload } from 'lucide-react';
 import { api, mediaUrl, uploadAsset } from '../api';
 import type { ImageGenerationSession } from './ImageGeneration';
 import { frameLabel, videoReferences, type VideoDraft, type VideoReference } from './video-draft';
@@ -43,26 +44,27 @@ export function VideoGeneration({ assets,value,update,session,imported,submit }:
     else if (['image','video','audio'].includes(asset.kind)) update(d => d.references.length < 12 ? { ...d,references:[...d.references,{ role:asset.kind as VideoReference['role'],assetId:asset.id,start:0,frames:56 }] } : d);
     else setError('参考素材须为图片、视频或音频');
   }
-  async function upload(file?:File, slot?:'firstFrameId'|'lastFrameId') {
+  async function upload(file?:File, slot?:'firstFrameId'|'lastFrameId', kind?:string) {
     if (!file || controller.current) return;
     const abort=new AbortController(); controller.current=abort; setUploading('0%'); setError('');
     try {
-      if (!/^(image|video|audio)\//.test(file.type) || (slot && !file.type.startsWith('image/')) || file.size > (file.type.startsWith('image/') ? 64 : 256)*1024**2) throw Error('请选择符合类型与大小限制的媒体文件');
+      if ((kind && !file.type.startsWith(kind+'/')) || !/^(image|video|audio)\//.test(file.type) || (slot && !file.type.startsWith('image/')) || file.size > (file.type.startsWith('image/') ? 64 : 256)*1024**2) throw Error('请选择符合类型与大小限制的媒体文件');
       const asset=await uploadAsset(file,abort.signal,n=>setUploading(`${Math.round(n*100)}%`)); await imported(asset); add(asset,slot);
     } catch(e) { if (!abort.signal.aborted) setError((e as Error).message); }
     finally { controller.current=null; setUploading(''); }
   }
-  function picker(slot?:'firstFrameId'|'lastFrameId', title='添加参考') {
+  function picker(slot?:'firstFrameId'|'lastFrameId', title='添加参考', kind?:string) {
     const selected=slot ? assets.find(a=>a.id===value[slot]) : null;
-    return <section className="video-reference-picker" onDragOver={e=>{ e.preventDefault(); e.stopPropagation(); }} onDrop={e=>{
+    const choose=(asset:Asset)=>{if(kind && asset.kind!==kind){setError('请选择对应类型的参考素材');return;}add(asset,slot);};
+    return <section className="reference-empty" onDragOver={e=>{ e.preventDefault(); e.stopPropagation(); }} onDrop={e=>{
       e.preventDefault(); e.stopPropagation(); if (busy || uploading) return;
       const asset=assets.find(a=>a.id===e.dataTransfer.getData('application/x-zhilume-asset'));
-      if (asset) add(asset,slot); else void upload(e.dataTransfer.files[0],slot);
+      if (asset) choose(asset); else void upload(e.dataTransfer.files[0],slot,kind);
     }}>
-      {selected && <img src={mediaUrl(selected.url)} alt={title} />}
-      <PanelAction title={title} label={`${title} · ${selected?.filename || "选择或上传"}`} disabled={busy || !!uploading}><label>{title}<Select aria-label={title} value={slot ? value[slot] : ''} onChange={e=>{ const asset=assets.find(a=>a.id===e.target.value); if (asset) add(asset,slot); }}>
-        <option value="">选择项目素材…</option>{assets.filter(a=>slot ? a.kind==='image' : ['image','video','audio'].includes(a.kind)).map(a=><option key={a.id} value={a.id}>{a.filename}</option>)}
-      </Select></label><label className="speech-upload"><Upload size={14}/>上传<input aria-label={`上传${title}`} type="file" accept={slot ? 'image/*' : 'image/*,video/*,audio/*'} onChange={e=>{ void upload(e.target.files?.[0],slot); e.target.value=''; }}/></label></PanelAction>
+      {selected && <div className="reference-cards"><ReferenceCard asset={selected} title={title} remove={()=>edit({[slot!]:''})}><span>点击下方替换</span></ReferenceCard></div>}
+      <PanelAction title={title} label={`${title} · ${selected?.filename || "选择或上传"}`} disabled={busy || !!uploading}><label>{title}<Select aria-label={title} value={slot ? value[slot] : ''} onChange={e=>{ const asset=assets.find(a=>a.id===e.target.value); if (asset) choose(asset); }}>
+        <option value="">选择项目素材…</option>{assets.filter(a=>slot ? a.kind==='image' : kind ? a.kind===kind : ['image','video','audio'].includes(a.kind)).map(a=><option key={a.id} value={a.id}>{a.filename}</option>)}
+      </Select></label><label className="speech-upload"><Upload size={14}/>上传<input aria-label={`上传${title}`} type="file" accept={slot ? 'image/*' : kind ? `${kind}/*` : 'image/*,video/*,audio/*'} onChange={e=>{ void upload(e.target.files?.[0],slot,kind); e.target.value=''; }}/></label></PanelAction>
     </section>;
   }
   async function run() {
@@ -78,22 +80,27 @@ export function VideoGeneration({ assets,value,update,session,imported,submit }:
     disabled={busy || !!uploading}
     modes={<nav className="generation-tabs" aria-label="视频生成方式">{modes.map(([id,title])=><button key={id} aria-pressed={value.mode===id} className={value.mode===id?'active':''} onClick={()=>edit({ mode:id,modelId:id==='reference'?'minimax-h3-ref2va':'minimax-h3-fl2va',profileId: value.modelId === (id==='reference'?'minimax-h3-ref2va':'minimax-h3-fl2va') ? value.profileId : '', targetWorkerId: value.modelId === (id==='reference'?'minimax-h3-ref2va':'minimax-h3-fl2va') ? value.targetWorkerId : '' })}>{title}</button>)}</nav>}
     actions={<><LanguageTools value={value.prompt} apply={v => edit({ prompt: v })} purpose="h3" context={{ mode: value.mode, duration: value.frames / 24, includeAudio: value.includeAudio }} referenceAssetIds={refs.filter(r => ["first", "last", "image"].includes(r.role)).map(r => r.assetId)} /><span className="character-count">{value.prompt.length}/20000</span></>}
-    status={<>{uploading && <p className="muted">上传参考素材 {uploading}</p>}{error && <p role="alert" className="error">{error}</p>}{invalid && <p role="status" className="composer-validation">{invalid}</p>}{!invalid && !error && <OfflineNotice profile={profile}/>}</>}
-    footer={<><span className="model-picker">H3 · {value.mode==='reference'?'Ref2VA':'FL2VA'}</span><button ref={settingsAnchor} aria-label="视频参数" aria-expanded={settings} onClick={()=>setSettings(v=>!v)}><Settings2 size={15}/>{(value.frames/24).toFixed(2)}秒 / {value.width}×{value.height}</button><button className="primary generate-submit" aria-label="生成视频" disabled={taskRunning || !!invalid||busy||!!uploading} onClick={run}><ArrowUp size={17}/>{busy?'提交中…':submitLabel(profile)}</button></>}>
+    status={<>{uploading && <p className="muted">上传参考素材 {uploading}</p>}{error && <p role="alert" className="error">{error}</p>}{invalid && profile && value.prompt.trim() && (refs.some(r=>r.assetId) || !referenceError) && <p role="status" className="composer-validation">{invalid}</p>}{!profile && <p role="status" className="muted">暂无已登记的 H3 规格，可先保存创作草稿。</p>}{!error && <OfflineNotice profile={profile}/>}</>}
+    footer={<><span className="model-picker" title={value.mode==='reference'?'H3 Ref2VA':'H3 FL2VA'}>H3 · {modes.find(([id])=>id===value.mode)?.[1]}</span><button ref={settingsAnchor} aria-label="视频参数" aria-expanded={settings} onClick={()=>setSettings(v=>!v)}><Settings2 size={15}/>{(value.frames/24).toFixed(2)} 秒 · {value.width} × {value.height}</button><button className="primary generate-submit" aria-label="生成视频" title={invalid || "生成到当前节点"} disabled={taskRunning || !!invalid||busy||!!uploading} onClick={run}><ArrowUp size={17}/>{busy?'提交中…':submitLabel(profile)}</button></>}>
 
 
       {['first','first-last'].includes(value.mode) && picker('firstFrameId','首帧图片')}
       {['last','first-last'].includes(value.mode) && picker('lastFrameId','尾帧图片')}
-      {value.mode==='reference' && <>{picker()}<PanelAction title="参考素材与片段" label={`管理参考 · ${value.references.length} 个`} wide disabled={busy || !!uploading}><div className="video-reference-list">{value.references.map((r,i)=>{
-        const asset=assets.find(a=>a.id===r.assetId), tag=`<${r.role==='image'?'Picture':r.role==='video'?'Video':'Audio'} ${++counts[r.role]}>`;
-        return <article className="composer-popover" key={i}>
-          <header><button title="插入参考标签" onClick={()=>edit({prompt:value.prompt+tag})}>{tag}</button><span title={asset?.filename}>{asset?.filename || '素材已移除'}</span><button aria-label={`移除参考 ${i+1}`} onClick={()=>edit({references:value.references.filter((_,j)=>i!==j)})}><X size={14}/></button></header>
-          {asset && (r.role==='image'?<img src={mediaUrl(asset.url)} alt={tag}/>:r.role==='video'?<video src={mediaUrl(asset.url)} controls preload="metadata"/>:<audio src={mediaUrl(asset.url)} controls preload="metadata"/>)}
-          {r.role!=='image' && <div className="generation-row"><label>起点（秒）<input aria-label={`参考 ${i+1} 起点`} type="number" min={0} max={86400} step={.1} value={r.start} onChange={e=>edit({references:value.references.map((v,j)=>i===j?{...v,start:+e.target.value}:v)})}/></label><label>片段长度<Select aria-label={`参考 ${i+1} 长度`} value={r.frames} onChange={e=>edit({references:value.references.map((v,j)=>i===j?{...v,frames:+e.target.value}:v)})}>{Array.from({length:18},(_,j)=>56+j*17).filter(n=>n<=345).map(n=><option key={n} value={n} disabled={n>value.frames}>{frameLabel(n)}</option>)}</Select></label></div>}
-          <small className="muted">{r.role==='video'?'仅参考画面；声音请单独添加音频参考。':r.role==='audio'?'播放器试听原素材，生成只使用指定片段。':'点击标签可插入提示词，按编号描述参考关系。'}</small>
-          {i>0 && <button onClick={()=>edit({references:value.references.map((v,j)=>j===i-1?value.references[i]:j===i?value.references[i-1]:v)})}>上移参考（标签编号会变化）</button>}
-        </article>;
-      })}</div></PanelAction><small className="muted">参考重生成：保留你指定的内容关系，不是逐帧修改原视频。</small></>}
+      {value.mode==='reference' && <>
+        <div className="reference-adders">{picker(undefined,'添加图片','image')}{picker(undefined,'添加视频','video')}{picker(undefined,'添加音频','audio')}</div>
+        {!!value.references.length && <div className="reference-cards" aria-label="视频参考素材">{value.references.map((r,i)=>{
+          const asset=assets.find(a=>a.id===r.assetId),tag=`<${r.role==='image'?'Picture':r.role==='video'?'Video':'Audio'} ${++counts[r.role]}>`;
+          return <ReferenceCard key={i} asset={asset} title={`参考 ${i+1}`} detail={r.role==='image'?'图片参考':`${r.start.toFixed(2)} 秒起 · ${(r.frames/24).toFixed(2)} 秒`} remove={()=>edit({references:value.references.filter((_,j)=>i!==j)})}>
+            <button title="插入参考标签" onClick={()=>edit({prompt:value.prompt+tag})}>{tag}</button>
+            <PanelAction title={`参考 ${i+1} 设置`} label="编辑参考" wide disabled={busy || !!uploading}>
+              <label>替换素材<Select aria-label={`替换参考 ${i+1}`} value={r.assetId} onChange={e=>edit({references:value.references.map((v,j)=>i===j?{...v,assetId:e.target.value}:v)})}>{assets.filter(a=>a.kind===r.role).map(a=><option key={a.id} value={a.id}>{a.filename}</option>)}</Select></label>
+              {r.role!=='image' && <div className="generation-row"><label>起点（秒）<input aria-label={`参考 ${i+1} 起点`} type="number" min={0} max={86400} step={.1} value={r.start} onChange={e=>edit({references:value.references.map((v,j)=>i===j?{...v,start:+e.target.value}:v)})}/></label><label>片段长度<Select aria-label={`参考 ${i+1} 长度`} value={r.frames} onChange={e=>edit({references:value.references.map((v,j)=>i===j?{...v,frames:+e.target.value}:v)})}>{Array.from({length:18},(_,j)=>56+j*17).filter(n=>n<=345).map(n=><option key={n} value={n} disabled={n>value.frames}>{frameLabel(n)}</option>)}</Select></label></div>}
+              <small className="muted">{r.role==='video'?'仅参考画面；声音请单独添加音频参考。':r.role==='audio'?'播放器试听原素材，生成只使用指定片段。':'标签用于在提示词中说明此图片的用途。'}</small>
+              {i>0 && <button onClick={()=>edit({references:value.references.map((v,j)=>j===i-1?value.references[i]:j===i?value.references[i-1]:v)})}>上移参考（标签编号会变化）</button>}
+            </PanelAction>
+          </ReferenceCard>;
+        })}</div>}
+      </>}
       <ComposerPrompt aria-label="视频提示词" maxLength={20000} value={value.prompt} onChange={e=>edit({prompt:e.target.value})} placeholder="描述主体、动作、镜头和声音；有参考时用标签说明各素材的用途…"/>
       {settings && <FloatingPanel anchor={settingsAnchor} title="视频参数设置" close={() => setSettings(false)} disabled={busy || !!uploading}>
         <div className="generation-row"><label>尺寸<Select aria-label="视频尺寸" value={`${value.width}x${value.height}`} onChange={e=>{const [width,height]=e.target.value.split('x').map(Number);edit({width,height});}}>{[...[ [value.width,value.height] ],...(profile?.sizes||[])].filter((s,i,a)=>a.findIndex(v=>v[0]===s[0]&&v[1]===s[1])===i).map(s=><option key={s.join('x')} value={s.join('x')}>{s[0]} × {s[1]}</option>)}</Select></label>

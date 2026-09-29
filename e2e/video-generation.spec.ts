@@ -23,9 +23,9 @@ test('H3 single-click composer preserves modes and drafts, exact duration and re
   await selectOption(page.getByRole('dialog',{name:'尾帧图片',exact:true}).getByLabel('尾帧图片',{exact:true}), asset.id);await page.keyboard.press('Escape');
   await panel.getByLabel('视频提示词').fill('镜头缓慢推近，海浪声。');
   await panel.getByRole('button',{name:'全能参考',exact:true}).click();
-  await panel.getByRole('button',{name:/添加参考 ·/}).click();
-  await selectOption(page.getByRole('dialog',{name:'添加参考',exact:true}).getByLabel('添加参考',{exact:true}), asset.id);await page.keyboard.press('Escape');
-  await panel.getByRole('button',{name:/管理参考/}).click();await page.getByRole('button',{name:'<Picture 1>',exact:true}).click();await page.keyboard.press('Escape');
+  await panel.getByRole('button',{name:/添加图片 ·/}).click();
+  await selectOption(page.getByRole('dialog',{name:'添加图片',exact:true}).getByLabel('添加图片',{exact:true}), asset.id);await page.keyboard.press('Escape');
+  await panel.getByRole('button',{name:'<Picture 1>',exact:true}).click();
   await panel.getByRole('button',{name:'视频参数',exact:true}).click();
   await expect(page.getByLabel('视频时长')).toContainText('5.17 秒 · 124 帧');
   await page.screenshot({path:'test-results/video-generation-dark.png'});await page.keyboard.press('Escape');
