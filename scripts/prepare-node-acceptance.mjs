@@ -16,7 +16,7 @@ const headers={Authorization:'Bearer '+token,'Content-Type':'application/json'};
 async function call(path,data,method=data?'POST':'GET'){const r=await fetch(base+'/api/v1'+path,{method,headers,body:data?JSON.stringify(data):undefined});if(!r.ok)throw Error(await r.text());return r.json();}
 for(let i=0;;i++){try{await call('/system');break;}catch{if(i>100)throw Error(log);await new Promise(r=>setTimeout(r,200));}}
 await call('/language/providers',{name:'本地验收服务',baseUrl:`http://127.0.0.1:${provider.address().port}/v1`,apiKey:'fixture',models:[{model:'acceptance-text',capabilities:['text']}],defaults:{text:'acceptance-text'}});
-const project=await call('/projects',{name:'Studio 0.16.1 交互验收'});
+const project=await call('/projects',{name:'Studio 0.17.0 交互验收'});
 const upload=await fetch(base+'/api/v1/assets/uploads?filename=native-video.mp4',{method:'POST',headers:{...headers,'Content-Type':'application/octet-stream'},body:await readFile('e2e/fixtures/audio-video.mp4')});const asset=await upload.json();
 await call(`/projects/${project.id}/canvas`,{schemaVersion:1,baseRevision:0,viewport:{x:0,y:0,zoom:1},nodes:[
  {id:'text',type:'media',position:{x:80,y:100},style:{width:280},data:{kind:'text',title:'文本1',titleSource:'automatic',contentSchemaVersion:1,contentRevision:0,textDraft:'写一段测试文本'}},

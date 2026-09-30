@@ -1,4 +1,4 @@
-import {ComposerLayout, OfflineNotice, submitLabel} from './ComposerLayout';
+import {ComposerLayout, OfflineNotice} from './ComposerLayout';
 import type {ReactNode} from 'react';
 import { PanelAction } from '../overlays';
 import type { LanguageSelection } from './model-selection';
@@ -43,12 +43,13 @@ export function LanguageTools({ value, apply, purpose = 'general', generate = fa
     finally { setSubmitting(false); if(generate)pending?.(false); }
   }
   const selectedModel = models.find(m => m.profileId === modelId);
+  const submit=<button className="primary generate-submit" aria-label={generate ? "生成文本" : "优化提示词"} disabled={!!busy || !modelId || !value.trim()} onClick={() => void run()}>{generate ? '生成' : '优化提示词'}</button>;
   const controls = <><Select aria-label="语言模型" value={modelId} onChange={e => {setSelected(e.target.value);setLocalWorker('');select?.({profileId:e.target.value,targetWorkerId:''});}} disabled={!!busy}>
       <option value="">{generate ? '选择语言模型' : '使用默认优化模型 / 选择模型'}</option>{models.map(m => <option key={m.profileId} value={m.profileId}>{m.providerName} / {m.name}{m.executor === 'worker' ? ` · ${m.readyCount} 个执行端就绪` : m.ready ? '' : ' · 已停用'}</option>)}
-    </Select>{selectedModel?.executor === "worker" && <PanelAction title="语言参数" label="设置"><ExecutionTarget profile={selectedModel} value={targetWorkerId} change={setTargetWorkerId}/></PanelAction>}<button className="primary generate-submit" aria-label={generate ? "生成文本" : "优化提示词"} disabled={!!busy || !modelId || !value.trim()} onClick={() => void run()}>{generate ? submitLabel(selectedModel,'生成文本') : '优化提示词'}</button>
+    </Select>{selectedModel?.executor === "worker" && <PanelAction title="语言参数" label="设置"><ExecutionTarget profile={selectedModel} value={targetWorkerId} change={setTargetWorkerId}/></PanelAction>}
     {busy && job && <button onClick={() => api(`/jobs/${job.id}/cancel`, 'POST', {}).then(v => {setJob(v);if(v.status === 'cancelled')request.current=null;}, e => setError(e.message))}>取消</button>}</>;
   const status = <>{!models.length && <small className="muted">请先在 Server 管理台配置语言模型。</small>}{busy && <small role="status">{job?.stage || "提交中…"}</small>}{error && <p role="alert">{error}</p>}{selectedModel?.executor === "worker" && <OfflineNotice profile={selectedModel}/>}</>;
-  const content = <div className="language-tools"><div className="generation-row">{controls}</div>    {referenceAssetIds.length > 0 && <label><input type="checkbox" checked={useImages} disabled={!selectedModel?.capabilities.includes('vision')} onChange={e => setUseImages(e.target.checked)} />同时发送参考图片给语言模型（需图片理解能力）</label>}
+  const content = <div className="language-tools"><div className="generation-row">{controls}{submit}</div>    {referenceAssetIds.length > 0 && <label><input type="checkbox" checked={useImages} disabled={!selectedModel?.capabilities.includes('vision')} onChange={e => setUseImages(e.target.checked)} />同时发送参考图片给语言模型（需图片理解能力）</label>}
     {!models.length && <small className="muted">可在 Server 管理台配置语言模型；不影响直接生成图片、视频和语音。</small>}
     {busy && <small role="status">{job?.stage || '提交中…'}</small>}
     {error && <p role="alert">{error}</p>}
@@ -56,7 +57,7 @@ export function LanguageTools({ value, apply, purpose = 'general', generate = fa
       {value !== original && <small>你已修改原稿；应用建议会替换当前输入。</small>}
       <div className="generation-row"><button onClick={() => { setSuggestion(''); request.current = null; }}>放弃建议</button><button className="primary" onClick={() => { apply(suggestion); setSuggestion(''); request.current = null; }}>应用建议</button></div></div>}
   </div>;
-  return generate ? <ComposerLayout modes={modes} footer={controls} status={status}>{body}</ComposerLayout> : <PanelAction title="优化提示词" label="✦ 优化提示词" wide>{content}</PanelAction>;
+  return generate ? <ComposerLayout modes={modes} footer={controls} submit={submit} status={status}>{body}</ComposerLayout> : <PanelAction title="优化提示词" label="✦" wide>{content}</PanelAction>;
 }
 
 export function ExecutionTarget({ profile, value, change }: { profile: any; value: string; change: (id: string) => void }) {

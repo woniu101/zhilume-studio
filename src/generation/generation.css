@@ -1,14 +1,22 @@
 .node-composer { container-type:inline-size; position: fixed; z-index: 40; display:flex; flex-direction:column; overflow: hidden; overscroll-behavior: contain; padding: 16px; border: 1px solid var(--border); border-radius: 18px; background: var(--bg); box-shadow: var(--shadow); }
-.node-composer > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; color: var(--muted); font-size: 12px; }
-.node-composer > header > div { display: flex; gap: 4px; }
-.node-composer > header .icon-button { width: 26px; height: 26px; padding: 4px; }
+.composer-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; flex-shrink:0; }
+.composer-window-controls { display:flex; align-items:center; gap:4px; margin-left:auto; }
+.composer-window-controls .icon-button { width:28px; height:28px; padding:5px; border:0; background:transparent; }
+.composer-modes { min-width:0; }
+.composer-backdrop { position:fixed; inset:0; z-index:79; background:#0007; backdrop-filter:blur(4px); }
+.node-composer.is-expanded { z-index:80; box-sizing:border-box; }
+.node-composer.is-expanded .composer-body > fieldset { display:flex; flex-direction:column; min-height:100%; height:100%; box-sizing:border-box; }
+.node-composer.is-expanded .composer-body > fieldset > * { flex-shrink:0; }
+.node-composer.is-expanded .composer-body > fieldset > .composer-prompt { flex:1 0 200px; max-height:none; min-height:200px; }
+.node-composer.is-expanded .reference-cards { max-height:220px; }
+
 .generation { display: flex; flex-direction:column; min-height:0; gap: 8px; }
-.node-composer > header, .generation > footer { flex-shrink:0; }
+.generation > footer { flex-shrink:0; }
 .node-composer > .generation { flex:1; overflow:hidden; }
 .composer-layout > .composer-body { flex:1 1 auto; overflow:auto; overscroll-behavior:contain; min-height:0; padding:3px; isolation:isolate; }
-.composer-modes, .composer-actions, .composer-status { flex-shrink:0; }
+.composer-actions, .composer-status { flex-shrink:0; }
 .composer-body > fieldset { min-inline-size:0; }
-.composer-actions { display:flex; align-items:center; gap:8px; min-height:26px; }
+.composer-actions { display:flex; align-items:center; gap:8px; min-height:14px; }
 .composer-actions .panel-action { border:0; padding:3px 0; font-size:12px; }
 .character-count { margin-left:auto; color:var(--muted); font-size:11px; white-space:nowrap; }
 .composer-status { display:grid; gap:6px; max-height:100px; overflow:auto; font-size:12px; }
@@ -17,11 +25,6 @@
 .composer-modes .generation-tabs button { border-color:transparent; background:transparent; padding:5px 10px; }
 .composer-modes .generation-tabs button[aria-pressed=true] { background:var(--hover); color:var(--accent); }
 .speaker-audition { width:100%; height:32px; }
-@container(max-width:400px) {
-  .composer-toolbar { display:grid !important; grid-template-columns:minmax(0,1fr) auto auto; }
-  .composer-toolbar > .model-picker, .composer-toolbar > .select-trigger { grid-column:1/-1; max-width:100%; width:100%; }
-  .composer-toolbar > .generate-submit { grid-column:3; }
-}
 .generation fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; grid-auto-rows:max-content; align-content:start; gap: 12px; }
 .generation label { display: grid; gap: 7px; min-width: 0; margin: 0; font-size: 13px; }
 .generation input, .generation .select-trigger, .generation textarea { width: 100%; min-width: 0; box-sizing: border-box; margin: 0; }
@@ -70,10 +73,10 @@
 .composer-validation button { color: var(--accent); padding: 4px 7px; }
 .generation .composer-notice { font-size: 11px; }
 .generation footer { display: flex; align-items: center; gap: 8px; }
-.generation .composer-toolbar { flex-shrink:0; padding: 10px 0 0; border-top:1px solid var(--border); background: var(--bg); flex-wrap: wrap; }
+.generation .composer-toolbar { flex-shrink:0; padding:6px 0 0; background:var(--bg); flex-wrap:wrap; gap:6px; }
 .composer-toolbar > button { display: inline-flex; gap: 4px; align-items: center; justify-content: center; padding: 8px; font-size: 12px; }
-.generation .model-picker { justify-content:space-between; width: auto; flex: 1; max-width: 260px; font-size: 12px; border-color: transparent; background-color: transparent; }
-.composer-toolbar .generate-submit { margin-left: auto; border-radius: 20px; min-width: 74px; }
+.generation .model-picker { justify-content:space-between; width: auto; flex: 1; max-width: 200px; min-width:70px; font-size: 12px; border-color: transparent; background-color: transparent; }
+.composer-toolbar .generate-submit { order:10; margin-left: auto; border-radius: 20px; min-width: 74px; }
 @media (max-width: 620px) { .generation-row { flex-wrap: wrap; } .generation-row label { flex-basis: 45%; } .ratio-grid { grid-template-columns: repeat(4, 1fr); } }
 
 .speech-reference audio { width: 100%; height: 32px; }
@@ -107,9 +110,21 @@
 .language-tools > summary, .execution-target > summary, .node-versions > summary { cursor:pointer; padding:6px 0; }
 .language-tools[open] > summary, .execution-target[open] > summary { margin-bottom:8px; }
 .execution-target > small { display:block; margin:8px 0; overflow-wrap:anywhere; }
-.node-composer > header > .select-trigger { width:auto; min-width:110px; border:0; padding:4px 8px; background:transparent; color:var(--text); }
-.node-composer > header > .select-trigger:disabled { opacity:1; }
-.node-composer > header > .select-trigger:disabled > span:last-child { display:none; }
+ .composer-type { flex:0 0 auto; max-width:140px; }
+.composer-type .select-trigger { width:auto; border:0; padding:6px; background:transparent; color:var(--text); font-size:12px; }
+.composer-type .select-trigger:disabled { opacity:1; }
+.composer-type .select-trigger:disabled > span:last-child { display:none; }
+.composer-tools { display:flex; align-items:center; gap:4px; order:9; }
+.composer-tools .panel-action { border:0; padding:6px; min-width:28px; }
+@container(max-width:520px) {
+  .composer-toolbar > .model-picker, .composer-toolbar > .select-trigger { max-width:130px; }
+  .composer-toolbar .generate-submit { min-width:64px; }
+  .composer-toolbar > button { padding:6px; }
+}
+@container(max-width:420px) {
+  .composer-toolbar .composer-type { flex-basis:35%; }
+  .composer-toolbar > .model-picker, .composer-toolbar > .select-trigger { flex-basis:55%; max-width:none; }
+}
 .composer-task { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; margin-bottom:12px; background:var(--panel); border:1px solid var(--border); border-radius:10px; font-size:12px; }
 .composer-task small { display:block; color:var(--muted); margin-top:4px; }
 .composer-task button { flex-shrink:0; padding:6px 10px; }

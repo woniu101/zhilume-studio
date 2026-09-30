@@ -21,7 +21,7 @@ async function setup(page: any, request: any) {
   await page.goto('/'); await page.getByText(project.name, { exact: true }).click();
   await page.locator('.react-flow__node[data-id="image"]').click();
   await expect(page.getByRole('region', { name: '图片生成与编辑' })).toBeVisible();
-  return { project, assets, dialog: page.getByRole('region', { name: '图片生成与编辑' }) };
+  return { project, assets, dialog: page.locator('.node-composer') };
 }
 
 test('generation preserves inputs across models, orders references and retries with the same request id', async ({ page, request }) => {
@@ -111,7 +111,7 @@ test('empty nodes open on a single click, drafts survive closing, and panels rem
   await expect(node('text')).toContainText('分镜草稿');
   for (const kind of ['video', 'audio']) {
     await node(kind).click({ position: { x: 35, y: 30 } });
-    await expect(panel).toContainText(kind === 'video' ? 'H3 · 文生视频' : 'IndexTTS 2.5');
+    await expect(panel).toContainText(kind === 'video' ? 'H3' : 'IndexTTS 2.5');
     const b = (await panel.boundingBox())!, c = (await page.locator('.canvas-area').boundingBox())!, n = (await node(kind).boundingBox())!;
     expect(b.x).toBeGreaterThanOrEqual(c.x); expect(b.x + b.width).toBeLessThanOrEqual(c.x + c.width);
     expect(b.y).toBeGreaterThanOrEqual(c.y); expect(b.y + b.height).toBeLessThanOrEqual(c.y + c.height);
@@ -163,7 +163,7 @@ test('node failure exposes retry and cancellation without opening task history',
   await page.route('**/api/v1/jobs/fixture-job/retry', route => { status = 'queued'; return route.fulfill({ json: job() }); });
   await page.route('**/api/v1/jobs/fixture-job/cancel', route => { status = 'cancelled'; return route.fulfill({ json: job() }); });
   const { dialog } = await setup(page, request);
-  await dialog.getByRole('button', { name: '收起编辑区' }).click();
+  await page.keyboard.press('Escape');
   const node = page.locator('.react-flow__node[data-id="image"]');
   await expect(node.locator('.node-status')).toContainText('显存不足');
   await node.getByRole('button', { name: '重试节点任务' }).click();
@@ -196,7 +196,7 @@ test('compact composer keeps nested controls open, maps reference roles and resp
   await expect(page.getByRole('dialog',{name:'参考图片预览',exact:true})).toHaveCount(0);
   await dialog.getByRole('button', { name: '展开编辑区' }).click();
   await expect(dialog.getByRole('button', { name: '还原编辑区' })).toBeVisible();
-  const box = await dialog.boundingBox(); expect(box!.width).toBe(800);
+  const box = await dialog.boundingBox(); expect(box!.width).toBe(page.viewportSize()!.width-32); expect(box!.height).toBe(page.viewportSize()!.height-32);
   limit = 1;
   await dialog.getByRole('button', { name: '更多参数', exact: true }).click();
   await page.getByRole('button', { name: '刷新', exact: true }).click();

@@ -72,6 +72,6 @@ export function FloatingPanel({ anchor, close, title, children, wide = false, di
 
 export function PanelAction({ title, label, children, wide = false, disabled = false }: { title: string; label: ReactNode; children: ReactNode; wide?: boolean; disabled?: boolean }) {
   const anchor=useRef<HTMLButtonElement>(null),[open,setOpen]=useState(false);
-  return <><button type="button" ref={anchor} className="panel-action" aria-expanded={open} onClick={() => setOpen(v=>!v)}>{label}</button>
+  return <><button type="button" ref={anchor} className="panel-action" aria-label={label === "✦" ? `打开${title}` : undefined} title={title} aria-expanded={open} onClick={() => setOpen(v=>!v)}>{label}</button>
     {open && <FloatingPanel anchor={anchor} title={title} wide={wide} close={()=>setOpen(false)} disabled={disabled}>{children}</FloatingPanel>}</>;
 }

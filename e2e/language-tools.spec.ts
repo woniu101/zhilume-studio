@@ -11,12 +11,12 @@ test('prompt suggestion requires explicit apply and never changes original on fa
   await page.addInitScript(()=>sessionStorage.setItem('zhilume.session','e2e-local-fixture-only'));
   await page.goto('/');await page.getByText(project.name,{exact:true}).click();await page.locator('.react-flow__node[data-id="image"]').click();
   const panel=page.getByRole('region',{name:'图片生成与编辑'}),prompt=panel.getByLabel('提示词',{exact:true});
-  await panel.getByRole('button',{name:'✦ 优化提示词'}).click();
+  await panel.getByRole('button',{name:'打开优化提示词',exact:true}).click();
   await page.getByRole('button',{name:'优化提示词',exact:true}).click();
   await expect(page.getByLabel('建议稿')).toHaveValue('更清晰的建议描述');await expect(prompt).toHaveValue('原始描述');
   await page.screenshot({path:'test-results/prompt-suggestion-review.png'});
   await page.getByRole('button',{name:'应用建议'}).click();await expect(prompt).toHaveValue('更清晰的建议描述');
-  await page.keyboard.press('Escape'); fail=true;await prompt.fill('保留新的原稿');await panel.getByRole('button',{name:'✦ 优化提示词'}).click();await page.getByRole('button',{name:'优化提示词',exact:true}).click();
+  await page.keyboard.press('Escape'); fail=true;await prompt.fill('保留新的原稿');await panel.getByRole('button',{name:'打开优化提示词',exact:true}).click();await page.getByRole('button',{name:'优化提示词',exact:true}).click();
   await expect(page.getByRole('dialog',{name:'优化提示词',exact:true}).getByRole('alert')).toHaveText('测试服务失败');await expect(prompt).toHaveValue('保留新的原稿');
 });
 
@@ -30,7 +30,7 @@ test('Worker language model exposes execution target and failed retry uses a new
   await page.addInitScript(()=>sessionStorage.setItem('zhilume.session','e2e-local-fixture-only'));
   await page.goto('/');await page.getByText(project.name,{exact:true}).click();await page.locator('.react-flow__node[data-id="image"]').click();
   const panel=page.getByRole('region',{name:'图片生成与编辑'});
-  await panel.getByRole('button',{name:'✦ 优化提示词'}).click();
+  await panel.getByRole('button',{name:'打开优化提示词',exact:true}).click();
   await page.getByRole('dialog',{name:'优化提示词',exact:true}).getByRole('button',{name:'设置',exact:true}).click();
   await selectOption(page.getByLabel('指定执行端'), 'worker-b');await page.keyboard.press('Escape');
   await page.getByRole('button',{name:'优化提示词',exact:true}).click();

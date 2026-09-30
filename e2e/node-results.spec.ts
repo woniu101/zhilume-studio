@@ -49,7 +49,7 @@ test('in-place results, persistent versions, keyboard themes, empty type switch 
   await panel.getByRole('button',{name:/历史版本/}).click();await expect(page.locator('.node-versions article')).toHaveCount(1);
   await page.getByRole('button',{name:'另存为新节点'}).click();await expect(page.locator('.react-flow__node-media')).toHaveCount(2);
   await page.keyboard.press('Escape');
-  await panel.getByRole('button',{name:'收起编辑区'}).click();await node.click();
+  await page.keyboard.press('Escape');await node.click();
   await page.getByRole('button',{name:'更多节点操作'}).click();
   await page.getByRole('button',{name:'视频生成与参考编辑',exact:true}).click();
   await expect(page.locator('.kind-video')).toHaveCount(1);await expect(page.locator('.kind-image')).toHaveCount(2);

@@ -41,7 +41,7 @@ test('form focus remains visible and all node types omit simulation controls',as
     }
     await expect(page.getByRole('button',{name:'模拟',exact:true})).toHaveCount(0);
     await expect(page.getByRole('button',{name:'运行模拟任务',exact:true})).toHaveCount(0);
-    await panel.getByRole('button',{name:'收起编辑区'}).click();
+    await page.keyboard.press('Escape');
     await node.click({button:'right'});
     await expect(page.locator('.menu')).toBeVisible();
     await expect(page.locator('.menu')).not.toContainText('模拟');
@@ -64,7 +64,7 @@ test('compact layouts keep auxiliary actions, offline reason and footer visible 
       await panel.locator('textarea').first().fill('测试创作内容\n'.repeat(30));
       if(kind==='image') {
         await expect(panel.locator('.composer-status')).toContainText('所选模型离线');
-        await expect(panel.getByRole('button',{name:'提交生成'})).toHaveText('加入队列');
+        await expect(panel.getByRole('button',{name:'提交生成'})).toHaveText('生成');
         await expect(panel.getByRole('button',{name:'提交生成'})).toBeEnabled();
         await expect(panel.locator('.composer-body')).not.toContainText('执行设置');
       }
