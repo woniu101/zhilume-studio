@@ -1,4 +1,10 @@
 import {createContext, useContext, useLayoutEffect, useRef, type HTMLAttributes, type ReactNode, type TextareaHTMLAttributes} from 'react';
+import {ArrowUp, LoaderCircle} from 'lucide-react';
+import type {ButtonHTMLAttributes} from 'react';
+
+export function GenerateButton({busy=false, ...props}:ButtonHTMLAttributes<HTMLButtonElement> & {busy?:boolean}) {
+  return <button {...props} className="primary generate-submit" aria-busy={busy}>{busy ? <LoaderCircle size={16} className="generate-spinner"/> : <ArrowUp size={16}/>}<span>{busy ? '提交中…' : '生成'}</span></button>;
+}
 
 export const ComposerChrome = createContext<{typeControl?:ReactNode; controls?:ReactNode; expanded?:boolean}>({});
 
@@ -12,7 +18,7 @@ export function ComposerLayout({modes, actions, tools, status, footer, submit, c
     <div className="composer-body"><fieldset disabled={disabled}>{children}</fieldset></div>
     {actions && <div className="composer-actions">{actions}</div>}
     {status && <div className="composer-status">{status}</div>}
-    <footer className="composer-toolbar"><div className="composer-type">{chrome.typeControl}</div>{footer}{tools && <div className="composer-tools">{tools}</div>}{submit}</footer>
+    <footer className="composer-toolbar"><div className="composer-options"><div className="composer-type">{chrome.typeControl}</div>{footer}{tools}</div>{submit && <div className="composer-submit">{submit}</div>}</footer>
   </div>;
 }
 

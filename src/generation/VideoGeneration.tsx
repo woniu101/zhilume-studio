@@ -1,12 +1,12 @@
 import {ReferenceCard} from './ReferenceCard';
-import {ComposerLayout, ComposerPrompt, OfflineNotice} from './ComposerLayout';
+import {GenerateButton, ComposerLayout, ComposerPrompt, OfflineNotice} from './ComposerLayout';
 import { FloatingPanel, PanelAction } from '../overlays';
 import { initialProfile } from './model-selection';
 import { Select } from '../Select';
 import { useNodeTask } from './NodeTask';
 import { LanguageTools, ExecutionTarget } from './LanguageTools';
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Settings2, Upload } from 'lucide-react';
+import { Settings2, Upload } from 'lucide-react';
 import { api, mediaUrl, uploadAsset } from '../api';
 import type { ImageGenerationSession } from './ImageGeneration';
 import { frameLabel, videoReferences, type VideoDraft, type VideoReference } from './video-draft';
@@ -82,7 +82,7 @@ export function VideoGeneration({ assets,value,update,session,imported,submit }:
     tools={<LanguageTools value={value.prompt} apply={v => edit({ prompt: v })} purpose="h3" context={{ mode: value.mode, duration: value.frames / 24, includeAudio: value.includeAudio }} referenceAssetIds={refs.filter(r => ["first", "last", "image"].includes(r.role)).map(r => r.assetId)} />}
     actions={<span className="character-count">{value.prompt.length}/20000</span>}
     status={<>{uploading && <p className="muted">上传参考素材 {uploading}</p>}{error && <p role="alert" className="error">{error}</p>}{invalid && profile && value.prompt.trim() && (refs.some(r=>r.assetId) || !referenceError) && <p role="status" className="composer-validation">{invalid}</p>}{!profile && <p role="status" className="muted">暂无已登记的 H3 规格，可先保存创作草稿。</p>}{!error && <OfflineNotice profile={profile}/>}</>}
-    submit={<button className="primary generate-submit" aria-label="生成视频" title={invalid || "生成到当前节点"} disabled={taskRunning || !!invalid||busy||!!uploading} onClick={run}><ArrowUp size={17}/>{busy?'提交中…':'生成'}</button>}
+    submit={<GenerateButton busy={busy} aria-label="生成视频" title={invalid || "生成到当前节点"} disabled={taskRunning || !!invalid||busy||!!uploading} onClick={run}/>}
     footer={<><span className="model-picker" title={value.mode==='reference'?'H3 Ref2VA':'H3 FL2VA'}>H3</span><button ref={settingsAnchor} aria-label="视频参数" aria-expanded={settings} onClick={()=>setSettings(v=>!v)}><Settings2 size={15}/>{(value.frames/24).toFixed(2)} 秒 · {value.width} × {value.height}</button></>}>
 
 

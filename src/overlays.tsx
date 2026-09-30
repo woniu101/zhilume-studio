@@ -6,6 +6,9 @@ const Parent = createContext<string | null>(null);
 type Entry = { id: string; parent: string | null; close: () => void };
 const stack: Entry[] = [];
 export const hasOverlays = () => stack.length > 0;
+// A dismissal owns its pointer event even after React removes the closing surface.
+const dismissalEvents=new WeakSet<Event>();
+export const isOverlayDismissal=(event:Event)=>dismissalEvents.has(event);
 
 /** Portal ownership, outside dismissal and Escape are shared by panels and menus. */
 export function useOverlay(open: boolean, close: () => void, anchor: RefObject<HTMLElement | null>, surface: RefObject<HTMLElement | null>) {
@@ -19,7 +22,7 @@ export function useOverlay(open: boolean, close: () => void, anchor: RefObject<H
     const outside = (event: PointerEvent) => {
       if (stack.at(-1) !== entry) return;
       const target = event.target as Node;
-      if (!surface.current?.contains(target) && !anchor.current?.contains(target)) callback.current();
+      if (!surface.current?.contains(target) && !anchor.current?.contains(target)) {dismissalEvents.add(event);callback.current();}
     };
     const key = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || stack.at(-1) !== entry) return;
@@ -70,8 +73,8 @@ export function FloatingPanel({ anchor, close, title, children, wide = false, di
   </div></Parent.Provider>, document.body);
 }
 
-export function PanelAction({ title, label, children, wide = false, disabled = false }: { title: string; label: ReactNode; children: ReactNode; wide?: boolean; disabled?: boolean }) {
+export function PanelAction({ title, label, children, wide = false, disabled = false, active=false }: { title: string; label: ReactNode; children: ReactNode; wide?: boolean; disabled?: boolean; active?:boolean }) {
   const anchor=useRef<HTMLButtonElement>(null),[open,setOpen]=useState(false);
-  return <><button type="button" ref={anchor} className="panel-action" aria-label={label === "✦" ? `打开${title}` : undefined} title={title} aria-expanded={open} onClick={() => setOpen(v=>!v)}>{label}</button>
+  return <><button type="button" ref={anchor} className="panel-action" aria-label={typeof label === "string" ? undefined : `打开${title}`} data-active={active || undefined} title={title} disabled={disabled} aria-expanded={open} onClick={() => setOpen(v=>!v)}>{label}</button>
     {open && <FloatingPanel anchor={anchor} title={title} wide={wide} close={()=>setOpen(false)} disabled={disabled}>{children}</FloatingPanel>}</>;
 }

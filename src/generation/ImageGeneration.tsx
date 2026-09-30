@@ -1,11 +1,11 @@
-import {ComposerLayout, ComposerPrompt, OfflineNotice} from './ComposerLayout';
+import {GenerateButton, ComposerLayout, ComposerPrompt, OfflineNotice} from './ComposerLayout';
 import { FloatingPanel, PanelAction } from '../overlays';
 import { initialProfile } from './model-selection';
 import { Select } from '../Select';
 import { useNodeTask } from './NodeTask';
 import { LanguageTools, ExecutionTarget } from './LanguageTools';
 import { useEffect, useRef, useState } from "react";
-import { Plus, X, ArrowUp, GripVertical, Settings2, ChevronDown, ImagePlus } from "lucide-react";
+import { Plus, X, GripVertical, Settings2, ChevronDown, ImagePlus } from "lucide-react";
 import { api, mediaUrl, uploadAsset } from "../api";
 import { type ImageDraft, ratios, ratioSize } from "./draft";
 import catalog from "../contracts/operation-catalog.json";
@@ -144,9 +144,9 @@ export function ImageGeneration({ assets, value, update, session, imported, subm
     {notice && <p className="muted composer-notice">{notice}</p>}
     {error && <p role="alert" className="error">{error}</p>}
     {invalid && invalid !== "请输入提示词。" && (invalid !== count || refs.length > 0) && <div className="composer-validation" role="status">{invalid}{!model.operations.includes(operation) && <button onClick={() => { edit({ modelId: "qwen-image-2.1", profileId: "" }); setNotice("已切换至 Qwen Image 2.1，原输入已保留。"); }}>切换至 Qwen 2.1</button>}{format === "rgba" && !model.formats.includes(format) && <button onClick={() => edit({ format: "png" })}>使用普通 PNG</button>}</div>}{!error && <OfflineNotice profile={profile}/>}</>}
-    submit={<button className="primary generate-submit" aria-label="提交生成" title={taskRunning ? "当前节点任务尚未结束" : invalid || "生成到当前节点"} disabled={taskRunning || busy || !!uploading || !!invalid} onClick={run}>{busy ? "提交中…" : <><ArrowUp size={18} /><span>{'生成'}</span></>}</button>}
+    submit={<GenerateButton busy={busy} aria-label="提交生成" title={taskRunning ? "当前节点任务尚未结束" : invalid || "生成到当前节点"} disabled={taskRunning || busy || !!uploading || !!invalid} onClick={run}/>}
     footer={<>
-      <Select className="model-picker" displayValue={<><i className="model-dot" data-ready={(profile?.readyCount || 0)>0}/>{model.name}</>} aria-label="模型" disabled={busy || !!uploading} value={modelId} onChange={e => edit({ modelId: e.target.value, profileId: "" })}>{models.map(m => <option key={m.id} value={m.id}>{m.name}{m.profiles.length ? ` · ${m.profiles.reduce((count,p) => count+(p.readyCount || 0),0)} 端在线` : " · 未配置"}</option>)}</Select>
+      <Select variant="toolbar" className="model-picker" displayValue={<><i className="model-dot" data-ready={(profile?.readyCount || 0)>0}/>{model.name}</>} aria-label="模型" disabled={busy || !!uploading} value={modelId} onChange={e => edit({ modelId: e.target.value, profileId: "" })}>{models.map(m => <option key={m.id} value={m.id}>{m.name}{m.profiles.length ? ` · ${m.profiles.reduce((count,p) => count+(p.readyCount || 0),0)} 端在线` : " · 未配置"}</option>)}</Select>
       <button ref={outputAnchor} aria-label="输出参数" aria-expanded={menu === "output"} disabled={busy || !!uploading} onClick={() => toggle("output")}>{generate ? `${width} × ${height}` : "跟随基准图"}{format === "rgba" ? " · 透明" : ""}<ChevronDown size={13} /></button>
       <button ref={advancedAnchor} aria-label="更多参数" aria-expanded={menu === "advanced"} disabled={busy || !!uploading} onClick={() => toggle("advanced")}><Settings2 size={16} /></button>
 

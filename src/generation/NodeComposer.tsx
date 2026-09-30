@@ -1,5 +1,5 @@
 import { ComposerChrome } from './ComposerLayout';
-import { hasOverlays } from '../overlays';
+import { hasOverlays, isOverlayDismissal } from '../overlays';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useViewport } from "@xyflow/react";
 import { Maximize2, Minimize2 } from "lucide-react";
@@ -26,7 +26,7 @@ export function NodeComposer({ nodeId, title, layout, close, children, typeContr
     if (!element || !node || !canvas) return;
     const position = () => {
       const n = node.getBoundingClientRect(), c = canvas.getBoundingClientRect();
-      if(expanded) {const next={left:16,top:16,width:innerWidth-32,maxHeight:innerHeight-32,visible:true};setPlacement(previous=>JSON.stringify(previous)===JSON.stringify(next)?previous:next);return;}
+      if(expanded) {const margin=innerWidth<720 || innerHeight<600 ? 16 : 40, width=Math.min(860,innerWidth-margin*2);const next={left:(innerWidth-width)/2,top:margin,width,maxHeight:innerHeight-margin*2,visible:true};setPlacement(previous=>JSON.stringify(previous)===JSON.stringify(next)?previous:next);return;}
       const width = Math.min(620, c.width - 24), bottom = Math.min(c.bottom, innerHeight) - 12;
       const top = Math.max(c.top, 0) + 12;
       const below = bottom - n.bottom - 14, above = n.top - 86 - top;
@@ -91,7 +91,7 @@ export function NodeComposer({ nodeId, title, layout, close, children, typeContr
     };
   }, [nodeId, close, expanded]);
   return <ComposerChrome.Provider value={{typeControl, expanded, controls:<>{headerActions}<button ref={toggle} className="icon-button" aria-label={expanded ? "还原编辑区" : "展开编辑区"} title={expanded ? "退出专注编辑（Esc）" : "专注编辑"} aria-pressed={expanded} onClick={() => changeExpanded(!expanded)}>{expanded ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button></>}}>
-    {expanded && <div className="composer-backdrop" aria-hidden="true"/>}
+    {expanded && <div className="composer-backdrop" aria-hidden="true" onPointerDown={event=>{event.preventDefault();if(!isOverlayDismissal(event.nativeEvent) && !hasOverlays())changeExpanded(false);}}/>}
     <section ref={panel} className={`node-composer nodrag nopan nowheel${expanded ? ' is-expanded' : ''}`} role={expanded ? "dialog" : "region"} aria-modal={expanded || undefined} aria-label={title}
       style={{ left: placement.left, top: placement.top, width: placement.width, height:expanded ? placement.maxHeight : undefined, maxHeight: placement.maxHeight, visibility: placement.visible ? "visible" : "hidden" }}
       onKeyDown={event => { if (event.key !== "Escape" && event.key !== "Tab") event.stopPropagation(); }}>

@@ -28,7 +28,7 @@ test('speech drafts, reference roles, model limits and retry idempotency', async
   const { panel, project, asset } = await setup(page, request);
   await panel.getByRole('button', { name: '语音参数', exact: true }).click();
   await page.getByLabel('语速', { exact: true }).fill('1.25');
-  await page.keyboard.press('Escape');await panel.getByRole('button',{name:/情绪 ·/}).click();
+  await page.keyboard.press('Escape');await panel.getByRole('button',{name:/情绪：/}).click();
   await selectOption(page.getByLabel('情绪方式'), 'reference');
   await page.getByRole('dialog',{name:'情绪设置'}).getByRole('button',{name:/情绪参考 ·/}).click();
   await selectOption(page.getByRole('combobox', { name: '情绪参考', exact: true }), asset.id);
@@ -63,7 +63,7 @@ test('offline speech remains editable and hides when canvas loses focus', async 
   const { panel } = await setup(page, request, false);
   await expect(panel.getByRole('status')).toContainText('尚未配置 IndexTTS');
   await expect(panel.getByRole('button', { name: '合成语音' })).toBeDisabled();
-  await panel.getByRole('button',{name:/情绪 ·/}).click();
+  await panel.getByRole('button',{name:/情绪：/}).click();
   await selectOption(page.getByLabel('情绪方式'), 'vector');
   await page.getByLabel('高兴强度').fill('0.65');
   await page.evaluate(() => document.documentElement.dataset.theme = 'light');

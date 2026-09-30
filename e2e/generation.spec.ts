@@ -196,7 +196,7 @@ test('compact composer keeps nested controls open, maps reference roles and resp
   await expect(page.getByRole('dialog',{name:'参考图片预览',exact:true})).toHaveCount(0);
   await dialog.getByRole('button', { name: '展开编辑区' }).click();
   await expect(dialog.getByRole('button', { name: '还原编辑区' })).toBeVisible();
-  const box = await dialog.boundingBox(); expect(box!.width).toBe(page.viewportSize()!.width-32); expect(box!.height).toBe(page.viewportSize()!.height-32);
+  const box = await dialog.boundingBox(); expect(box!.width).toBe(860); expect(box!.height).toBe(page.viewportSize()!.height-80);
   limit = 1;
   await dialog.getByRole('button', { name: '更多参数', exact: true }).click();
   await page.getByRole('button', { name: '刷新', exact: true }).click();
