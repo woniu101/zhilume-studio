@@ -54,8 +54,8 @@ export function createNode(
     type: "media",
     position,
     style: {
-      width: kind === "audio" ? 320 : 280,
-      ...(kind === "audio" ? { height: 108 } : {}),
+      width: 280,
+      height: kind === "audio" && data.assetId ? 108 : 176,
     },
     data: { kind, contentSchemaVersion: 1, contentRevision: 0, titleSource: "automatic", title: `${kindNames[kind]}节点`, ...data },
   };
@@ -69,7 +69,7 @@ export function cleanDocument(
     schemaVersion: 1,
     ...(viewport ? { viewport } : {}),
     nodes: nodes.map(({ selected, dragging, measured, resizing, ...node }) =>
-      node.data.kind === "audio" && node.type === "media"
+      node.data.kind === "audio" && !!node.data.assetId && node.type === "media"
         ? { ...node, height: 108, style: { ...node.style, height: 108 } }
         : node,
     ),

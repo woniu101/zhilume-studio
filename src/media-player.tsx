@@ -4,6 +4,7 @@ import {
   useId,
   useRef,
   useState,
+  type ReactNode,
   type CSSProperties,
   type PointerEvent,
 } from "react";
@@ -71,10 +72,12 @@ export function MediaPlayer({
   kind = asset.kind,
   preview = false,
   onDimensions,
+  accessory,
 }: {
   asset: any;
   kind?: "video" | "audio";
   preview?: boolean;
+  accessory?: ReactNode;
   onDimensions?: (width: number, height: number) => void;
 }) {
   const media = useRef<HTMLMediaElement | null>(null),
@@ -377,10 +380,11 @@ export function MediaPlayer({
           <span className="media-time" aria-live="off">
             {formatTime(time)} <span>/ {formatTime(duration)}</span>
           </span>
+          {accessory}
           <div className="player-actions">
             <label className="rate-label">
               <span className="sr-only">播放速度</span>
-              <Select
+              <Select variant="toolbar"
                 aria-label="播放速度"
                 value={rate}
                 onChange={(event) => {

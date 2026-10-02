@@ -2,8 +2,8 @@ import { Select } from './Select';
 import { NodeVersions } from './generation/NodeVersions';
 import { NodeTask, NodeTaskStatus, taskActive } from './generation/NodeTask';
 import { receiveResults, replaceContent, canSwitchKind, snapshot, type NodeResult } from './node-content';
-import { useServerHealth, serverHealthLabel } from "./use-server-health";
-import type { ServerHealth } from "./server-health";
+import { useConnectionState, startConnectionMonitor, connectionEpoch, type ConnectionStatus as ServerHealth } from './connection';
+import { ConnectionControl } from './ConnectionControl';
 import { TaskGroupRunner } from './generation/TaskGroupRunner';
 import { LanguageProject } from './generation/LanguageTools';
 import { VideoGeneration } from "./generation/VideoGeneration";
@@ -49,22 +49,19 @@ import {
   Ungroup,
   Download,
   Check,
-  LogOut,
   X,
   ChevronRight,
   Layers,
   MoreHorizontal,
 } from "lucide-react";
 import {
-  api,
+  api as serverApi,
   connection,
-  logout,
   mediaUrl,
   sizeLabel,
   statusLabel,
   restoreDesktopSession,
   mergeAssets,
-  login,
   uploadAsset,
 } from "./api";
 import { Brand, ThemeButton, Login, Modal } from "./ui";
@@ -96,6 +93,7 @@ import { ImageGeneration, type ImageGenerationSession } from "./generation/Image
 import { MediaTools } from "./media-tools/MediaTools";
 import "./styles.css";
 
+const api = serverApi;
 const nodeTypes = { media: MediaNode, group: GroupNode };
 const kinds: Kind[] = ["text", "image", "video", "audio"];
 const accept = {
@@ -161,13 +159,18 @@ function NameModal({
 }
 
 function App() {
-  const [connected, setConnected] = useState(!!connection.token),
+  const [projectLoading, setProjectLoading] = useState(true),
+    [projectError,setProjectError] = useState(""),
     [project, setProject] = useState<any>(null),
     [projects, setProjects] = useState<any[]>([]),
     [create, setCreate] = useState(false),
     [toast, setToast] = useState(""),
     [query, setQuery] = useState("");
-  const serverHealth = useServerHealth(connected);
+  const connectionState = useConnectionState(), serverHealth = connectionState.status;
+  const connected = serverHealth !== 'disconnected';
+  const activeProject = project?._serverId === connection.serverId && project?._base === connection.base ? project : null;
+  useEffect(() => { startConnectionMonitor(); }, []);
+  useEffect(() => { setProject(null); setProjects([]); setProjectError(''); setProjectLoading(true); }, [connection.base, connection.serverId]);
   const notify = useCallback((s: string) => setToast(s), []);
   useEffect(() => {
     if (toast) {
@@ -176,25 +179,23 @@ function App() {
     }
   }, [toast]);
   const refresh = useCallback(async () => {
-    try {
-      setProjects(await api("/projects"));
-    } catch (e) {
-      if ((e as any).status === 401) setConnected(false);
-      else notify((e as Error).message);
-    }
+    const epoch=connectionEpoch();setProjectLoading(true);setProjectError('');
+    try { const list=await api('/projects'); if(epoch===connectionEpoch())setProjects(list); }
+    catch(e) { if(epoch===connectionEpoch())setProjectError((e as Error).message); }
+    finally { if(epoch===connectionEpoch())setProjectLoading(false); }
   }, [notify]);
   useEffect(() => {
-    if (connected && !project) void refresh();
-  }, [connected, project, refresh]);
+    if (serverHealth === "online" && !project) void refresh();
+  }, [serverHealth, project, refresh, connection.base, connection.serverId]);
   return (
     <>
       {!connected ? (
-        <Login connected={() => setConnected(true)} />
-      ) : project ? (
+        <Login connected={() => {}} />
+      ) : activeProject ? (
         <ReactFlowProvider>
           <Workspace
-            key={project.id}
-            project={project}
+            key={`${connection.serverId || connection.base}:${project.id}`}
+            project={activeProject}
             serverHealth={serverHealth}
             notify={notify}
             leave={() => setProject(null)}
@@ -205,21 +206,8 @@ function App() {
           <header>
             <Brand />
             <div className="row">
-              <span className="connection-pill" data-status={serverHealth} role="status">
-                <span className="dot" />
-                {serverHealthLabel[serverHealth]}
-              </span>
+              <ConnectionControl />
               <ThemeButton />
-              <button
-                className="icon-button"
-                title="断开连接"
-                onClick={() => {
-                  logout();
-                  setConnected(false);
-                }}
-              >
-                <LogOut size={17} />
-              </button>
             </div>
           </header>
           <div className="projects-heading">
@@ -227,7 +215,7 @@ function App() {
               <h1>我的创作空间</h1>
               <p className="muted">把文字、画面和声音，连接成新的可能。</p>
             </div>
-            <button className="primary" onClick={() => setCreate(true)}>
+            <button className="primary" disabled={serverHealth!=="online"} onClick={() => setCreate(true)}>
               <Plus size={16} />
               新建项目
             </button>
@@ -246,6 +234,8 @@ function App() {
               />
             </div>
           </div>
+          {(projectError || ['offline','unauthorized','incompatible'].includes(serverHealth)) && <div className="project-load-message" role="status"><strong>{projects.length?'项目列表尚未刷新':'暂时无法获取项目'}</strong><span className="muted">{projectError || '请恢复服务连接后重试，项目不会因此被删除。'}</span><button onClick={()=>window.dispatchEvent(new Event('zhilume:open-connection'))}>管理连接</button>{serverHealth==='online'&&<button onClick={()=>void refresh()}>重新加载</button>}</div>}
+          {((projectLoading && serverHealth==='online') || serverHealth==='checking') && <div className="project-skeleton" role="status" aria-label="正在加载项目"><span/><span/><span/></div>}
           <div className="project-grid">
             {projects
               .filter((p) => !p.archivedAt && p.name.includes(query))
@@ -253,7 +243,7 @@ function App() {
                 <button
                   className="project-card"
                   key={p.id}
-                  onClick={() => setProject(p)}
+                  onClick={() => setProject({...p,_serverId:connection.serverId,_base:connection.base})}
                 >
                   <div className="project-art">
                     <Layers size={38} strokeWidth={1} />
@@ -270,7 +260,7 @@ function App() {
                 </button>
               ))}
           </div>
-          {!projects.some((p) => !p.archivedAt) && (
+          {!projectLoading && !projectError && serverHealth==="online" && !projects.some((p) => !p.archivedAt) && (
             <div className="empty">
               <FolderOpen size={44} strokeWidth={1} />
               <h2>你的第一张画布，留给第一个想法。</h2>
@@ -317,7 +307,7 @@ function App() {
             try {
               const p = await api("/projects", "POST", { name });
               setCreate(false);
-              setProject(p);
+              setProject({...p,_serverId:connection.serverId,_base:connection.base});
             } catch (e) {
               notify((e as Error).message);
             }
@@ -345,6 +335,11 @@ function Workspace({
   notify: (s: string) => void;
   leave: () => void;
 }) {
+  const scope=useRef({base:connection.base,serverId:connection.serverId});
+  const api=useCallback((...args:Parameters<typeof serverApi>)=>{
+    if(scope.current.base!==connection.base || scope.current.serverId!==connection.serverId)return Promise.reject(new Error('服务已切换，此操作仍属于原项目'));
+    return serverApi(...args);
+  },[]);
   const flow = useReactFlow();
   const [nodes, setNodes] = useState<CanvasNode[]>([]),
     [edges, setEdges] = useState<Edge[]>([]),
@@ -399,7 +394,7 @@ function Workspace({
       library?: boolean;
       position?: { x: number; y: number };
     }>({});
-  const draftKey = `zhilume.draft.${connection.base}.${project.id}`;
+  const draftKey = `zhilume.draft.${connection.serverId || connection.base}.${project.id}`;
   useCanvasClipboard({
     blocked: !!dialog || !!composer || conflict || !loaded,
     document: () => live.current,
@@ -420,6 +415,7 @@ function Workspace({
     (c) => validConnection(c.source, c.target, live.current.edges),
   );
   function assign(doc: Document) {
+    doc = {...doc, nodes:doc.nodes.map(n=>n.data.kind==='audio' && n.data.assetId ? {...n,height:108,style:{...n.style,height:108}} : n)};
     live.current = doc;
     setNodes(doc.nodes);
     setEdges(doc.edges);
@@ -611,7 +607,21 @@ function Workspace({
     window.addEventListener("beforeunload", unload);
     return () => window.removeEventListener("beforeunload", unload);
   }, []);
+  useEffect(() => {
+    const preserve = (event:Event) => {
+      if(!loaded)return;
+      try { const document=cleanDocument(live.current.nodes,live.current.edges,live.current.viewport);
+        if(JSON.stringify(document)!==saved.current)localStorage.setItem(draftKey,JSON.stringify({document,baseRevision:revision.current}));
+        uploadController.current?.abort();
+      } catch { event.preventDefault(); notify('无法保存草稿，请先导出画布。'); }
+    };
+    window.addEventListener('zhilume:before-switch',preserve);
+    return ()=>window.removeEventListener('zhilume:before-switch',preserve);
+  },[loaded,draftKey,notify]);
+  useEffect(()=>{if(serverHealth==='online' && loaded)void flush().catch(()=>{});},[serverHealth,loaded,flush]);
+  useEffect(()=>{const recover=()=>{if(loaded)void flush().catch(()=>{});};window.addEventListener('zhilume:session-restored',recover);return()=>window.removeEventListener('zhilume:session-restored',recover);},[loaded,flush]);
   const refresh = useCallback(async () => {
+    const epoch = connectionEpoch();
     const values = await Promise.all([
       api("/assets"),
       api(`/jobs?projectId=${project.id}`),
@@ -619,6 +629,7 @@ function Workspace({
       api(`/projects/${project.id}/library`),
       api(`/projects/${project.id}/node-results`),
     ]);
+    if (epoch !== connectionEpoch()) return;
     setAssets((previous) => mergeAssets(previous, [...values[0], ...values[4].map((r:any) => r.output)]));
     setJobs(values[1]);
     setNodeResults(values[4]);
@@ -637,6 +648,7 @@ function Workspace({
     }));
   }, [project.id]);
   useEffect(() => {
+    if (serverHealth !== 'online') return;
     let alive = true;
     let busy = false;
     const poll = async () => {
@@ -656,7 +668,7 @@ function Workspace({
       alive = false;
       clearInterval(timer);
     };
-  }, [refresh]);
+  }, [refresh, serverHealth]);
   useEffect(() => {
     if (!loaded || blocked.current) return;
     const next = receiveResults(live.current, nodeResults);
@@ -665,8 +677,8 @@ function Workspace({
   function switchNodeKind(kind: Kind) {
     if (!composerNode || submittingNodes.has(composerNode.id) || uploadController.current || !canSwitchKind(composerNode, jobs, live.current.edges)) return;
     const title = composerNode.data.titleSource !== "custom" ? nextNodeTitle(kind, live.current.nodes) : composerNode.data.title;
-    mutate(d => ({ ...d, nodes: d.nodes.map(n => n.id === composerNode.id ? { ...n, width: kind === 'audio' ? 320 : 280, height: undefined,
-      style: { width: kind === 'audio' ? 320 : 280, ...(kind === 'audio' ? {height:108} : {}) }, data: { ...n.data, kind, title } } : n) }));
+    mutate(d => ({ ...d, nodes: d.nodes.map(n => n.id === composerNode.id ? { ...n, width: 280, height: 176,
+      style: { width:280, height:176 }, data: { ...n.data, kind, title } } : n) }));
     setComposer({ id: composerNode.id, mode: kind === 'audio' ? 'speech' : kind === 'text' ? 'content' : kind });
   }
   function submissionStatus(id:string, pending:boolean) {setSubmittingNodes(previous => {const next=new Set(previous);if(pending)next.add(id);else next.delete(id);return next;});}
@@ -764,6 +776,7 @@ function Workspace({
       notify("请等待当前上传结束，或先取消上传");
       return;
     }
+    const epoch=connectionEpoch();
     const controller = new AbortController();
     uploadController.current = controller;
     for (const [index, file] of Array.from(files).entries()) {
@@ -783,6 +796,7 @@ function Workspace({
         const asset = await uploadAsset(file, controller.signal, (progress) =>
           setUploadState({ name: file.name, progress }),
         );
+        if(epoch!==connectionEpoch() || controller.signal.aborted)break;
         if (target.library)
           await api(`/projects/${project.id}/library`, "POST", {
             assetId: asset.id,
@@ -803,7 +817,7 @@ function Workspace({
     }
     uploadController.current = null;
     setUploadState(null);
-    await refresh();
+    if(epoch===connectionEpoch())await refresh().catch(e=>notify(e.message));
   }
   function chooseFile(target: typeof uploadTarget.current = {}, kind?: Kind) {
     uploadTarget.current = target;
@@ -1019,10 +1033,8 @@ function Workspace({
           </span>
         </div>
         <div className="row">
-          <span className="connection-pill" data-status={serverHealth} role="status">
-            <span className="dot" />
-            {serverHealth === 'online' ? `${online} 个执行端在线` : serverHealthLabel[serverHealth]}
-          </span>
+          <ConnectionControl />
+          <span className="muted">{online} 个执行端在线</span>
           <button
             className="icon-button"
             title="任务记录"
@@ -1237,6 +1249,8 @@ function Workspace({
               checkpoint,
               changed: () => setNodes([...live.current.nodes]),
               mediaSize,
+              retryAsset: () => void refresh().catch(e=>notify(e.message)),
+              dropFiles: (id, files) => void upload(files.slice(0,1), {nodeId:id}),
             }}
           >
             <ConnectionPreview.Provider value={connecting.preview}>
@@ -1623,7 +1637,7 @@ function Workspace({
           <button
             onClick={() =>
               saveError.auth
-                ? setDialog({ type: "reauth" })
+                ? window.dispatchEvent(new Event("zhilume:open-connection"))
                 : void flush().catch((e) => notify(e.message))
             }
           >
@@ -1633,23 +1647,6 @@ function Workspace({
             导出草稿
           </button>
         </div>
-      )}
-      {dialog?.type === "reauth" && (
-        <NameModal
-          secret
-          title="重新连接当前 Server · 输入访问凭证"
-          close={() => setDialog(null)}
-          done={async (token) => {
-            try {
-              await login(connection.base, token);
-              setDialog(null);
-              await flush();
-              await refresh();
-            } catch (e) {
-              notify((e as Error).message);
-            }
-          }}
-        />
       )}
       {dialog?.type === "media-tools" && assets[dialog.node.data.assetId] && <MediaTools
         asset={assets[dialog.node.data.assetId]} assets={Object.values(assets)} close={() => setDialog(null)}

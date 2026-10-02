@@ -1,8 +1,8 @@
+import { ConnectionForm } from './ConnectionControl';
 import { hasOverlays } from './overlays';
 import brandIcon from "../assets/icon.svg";
 import { useEffect, useState, type ReactNode } from "react";
 import { Monitor, Moon, Sun, X } from "lucide-react";
-import { connection, login } from "./api";
 
 export function ThemeButton() {
   const [mode, setMode] = useState(
@@ -99,68 +99,5 @@ export function Login({
   connected: () => void;
   server?: boolean;
 }) {
-  const [base, setBase] = useState(connection.base || location.origin);
-  const [token, setToken] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  return (
-    <div className="login-page">
-      <div className="login-theme">
-        <ThemeButton />
-      </div>
-      <form
-        className="login-card"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setBusy(true);
-          setError("");
-          try {
-            await login(base, token);
-            connected();
-          } catch (error) {
-            setError(String((error as Error).message));
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <Brand subtitle={server ? "SERVER" : "STUDIO"} />
-        <p className="eyebrow">YOUR SPACE TO CREATE</p>
-        <h1>{server ? "连接你的创作服务" : "让想法，开始连接。"}</h1>
-        <p className="muted">
-          连接 Zhilume Server，
-          {server ? "管理执行端、任务与素材。" : "进入属于你的创作画布。"}
-        </p>
-        <label>
-          Server 地址
-          <input
-            aria-label="Server 地址"
-            value={base}
-            onChange={(e) => setBase(e.target.value)}
-            placeholder="https://你的 Server 地址"
-            required
-          />
-        </label>
-        <label>
-          访问凭证
-          <input
-            aria-label="访问凭证"
-            type="password"
-            autoComplete="current-password"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="由 Server 启动器提供"
-            required
-          />
-        </label>
-        {error && <p className="error">{error}</p>}
-        <button className="primary full" disabled={busy}>
-          {busy ? "正在连接…" : "连接 Server"}
-        </button>
-        <small className="muted">
-          在 Server 启动器复制访问凭证，或在 Server 终端运行 npm run credential。
-        </small>
-      </form>
-    </div>
-  );
+  return <div className="login-page"><div className="login-theme"><ThemeButton/></div><section className="login-card"><Brand subtitle={server?'SERVER':'STUDIO'}/><p className="eyebrow">YOUR SPACE TO CREATE</p><h1>连接你的创作服务</h1><p className="muted">选择最近使用的 Server，或连接新的创作空间。</p><ConnectionForm done={connected}/></section></div>;
 }

@@ -152,7 +152,7 @@ test('expired save session can reconnect without losing a 100-node draft', async
   await page.getByRole('button',{name:'放大',exact:true}).click();await expect(page.getByRole('alert')).toContainText('访问会话已过期');
   await page.getByRole('button',{name:'重新连接',exact:true}).click();
   await page.locator('input[type=password]').fill('e2e-local-fixture-only');
-  await page.unroute(pattern);await page.getByRole('button',{name:'确定',exact:true}).click();
+  await page.unroute(pattern);await page.getByRole('button',{name:'连接 Server',exact:true}).click();
   await expect(page.getByRole('alert')).toHaveCount(0);await expect(page.locator('.react-flow__node')).toHaveCount(100);
   const saved=await (await request.get(canvasUrl,{headers})).json();expect(saved.nodes).toHaveLength(100);expect(saved.nodes[99].data.text).toBe('草稿内容 99');expect(saved.viewport.zoom).toBeGreaterThan(1);
 });

@@ -1,3 +1,4 @@
+import './node-empty.css';
 import {FloatingPanel} from './overlays';
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { MediaPlayer } from "./media-player";
@@ -39,21 +40,26 @@ export const NodeContext = createContext<{
   checkpoint: () => void;
   changed: () => void;
   mediaSize: (id: string, assetId: string, width: number, height: number) => void;
+  retryAsset: () => void;
+  dropFiles: (id:string, files:File[]) => void;
 }>({
   assets: {},
   jobs: [],
   action: () => {},
   checkpoint: () => {},
   changed: () => {},
-  mediaSize: () => {},
+  mediaSize: () => {}, retryAsset:()=>{}, dropFiles:()=>{},
 });
 export function MediaNode({ id, data, selected }: NodeProps) {
   const viewport = useViewport(), flow = useReactFlow();
   const screenTop = (flow.getInternalNode(id)?.internals.positionAbsolute.y || 0) * viewport.zoom + viewport.y;
   const connecting = useConnection((connection) => connection.inProgress);
-  const { assets, jobs, action, checkpoint, changed, mediaSize } = useContext(NodeContext);
+  const { assets, jobs, action, checkpoint, changed, mediaSize, retryAsset, dropFiles } = useContext(NodeContext);
   const kind = data.kind as Kind;
   const Icon = icons[kind];
+  const empty = kind==='text' ? !data.assetId && !String(data.text||'').trim() && !data.html : !data.assetId;
+  const [dragOver,setDragOver]=useState(false),[imageError,setImageError]=useState(false),[retry,setRetry]=useState(0);
+  useEffect(()=>setImageError(false),[data.assetId,retry]);
   const asset = assets[String(data.assetId)];
   const url = asset ? mediaUrl(asset.url) : "";
   const dimensions = data.mediaSize as { assetId: string; width: number; height: number } | undefined;
@@ -70,7 +76,10 @@ export function MediaNode({ id, data, selected }: NodeProps) {
     !["succeeded", "failed", "interrupted", "cancelled", "blocked"].includes(job.status);
   return (
     <div
-      className={`media-node kind-${kind} ${fittedMedia ? "has-media" : ""} ${selected ? "selected" : ""} ${connecting ? "is-connecting" : ""}`}
+      className={`media-node kind-${kind} ${empty ? "is-empty" : "has-content"} ${dragOver ? "is-file-over" : ""} ${fittedMedia ? "has-media" : ""} ${selected ? "selected" : ""} ${connecting ? "is-connecting" : ""}`}
+      onDragOver={e=>{if(empty && e.dataTransfer.types.includes('Files')){e.preventDefault();e.stopPropagation();e.dataTransfer.dropEffect='copy';setDragOver(true);}}}
+      onDragLeave={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node))setDragOver(false);}}
+      onDrop={e=>{if(empty && e.dataTransfer.files.length){e.preventDefault();e.stopPropagation();setDragOver(false);dropFiles(id,Array.from(e.dataTransfer.files));}}}
       onDoubleClick={(e) => {
         if (
           (e.target as HTMLElement).closest(
@@ -78,14 +87,14 @@ export function MediaNode({ id, data, selected }: NodeProps) {
           )
         )
           return;
-        action(id, kind === "text" ? "edit" : "preview");
+        action(id, kind === "text" ? "edit" : empty ? kind === "audio" ? "speech-generation" : `${kind}-generation` : "preview");
       }}
     >
       <NodeResizer
         isVisible={selected}
         minWidth={kind === "video" && ratio ? Math.max(220, 160 * ratio) : 220}
-        minHeight={kind === "audio" ? 108 : fittedMedia ? kind === "video" ? 160 : 1 : 155}
-        maxHeight={kind === "audio" ? 108 : undefined}
+        minHeight={kind === "audio" && !empty ? 108 : fittedMedia ? kind === "video" ? 160 : 1 : 176}
+        maxHeight={kind === "audio" && !empty ? 108 : undefined}
         keepAspectRatio={fittedMedia && !!ratio}
         onResizeStart={checkpoint}
         onResizeEnd={changed}
@@ -146,7 +155,8 @@ export function MediaNode({ id, data, selected }: NodeProps) {
       </Handle>
       <NodeToolbar isVisible={selected} position={Position.Top} offset={Math.min(38, screenTop - 48)}>
         <div className="node-tools" data-node-id={id}>
-          <button title={kind==='text'?'编辑文本':'预览'} onClick={()=>action(id,kind==='text'?'edit':'preview')}>{kind==='text'?<Pencil size={13}/>:<Expand size={13}/>}</button>
+          {!empty && <button title={kind==='text'?'编辑文本':'预览'} onClick={()=>action(id,kind==='text'?'edit':'preview')}>{kind==='text'?<Pencil size={13}/>:<Expand size={13}/>}</button>}
+
           {kind==='image' && <button aria-label="图片生成与编辑" disabled={active} onClick={()=>action(id,'image-generation')}><Sparkles size={13}/>生成图片</button>}
           {kind==='video' && <button aria-label="视频生成与参考编辑" disabled={active} onClick={()=>action(id,'video-generation')}><Sparkles size={13}/>生成视频</button>}
           {kind==='audio' && <button aria-label="语音合成" disabled={active} onClick={()=>action(id,'speech-generation')}><Sparkles size={13}/>合成语音</button>}
@@ -155,35 +165,29 @@ export function MediaNode({ id, data, selected }: NodeProps) {
         </div>
       </NodeToolbar>
       <div className={`node-content ${kind}`} style={{position:"relative"}}>
-        {kind === "text" ? (
+        {empty ? <div className="empty-node-content"><Icon size={28} strokeWidth={1.5}/><span>{({text:'编写或生成文本',image:'生成或上传图片',video:'生成或上传视频',audio:'合成语音或上传音频'})[kind]}</span><button className="nodrag nopan" onClick={e=>{e.stopPropagation();action(id,kind==='text'?'edit':'upload');}}>{kind==='text'?<Pencil size={13}/>:<Upload size={13}/>}{kind==='text'?'编写文本':`上传${kindNames[kind]}`}</button></div> : kind === "text" ? (
           <p className="text-preview">
-            {String(data.text || "点击输入文本，记录提示词和创作想法。")}
+            {String(data.text || '')}
           </p>
         ) : asset ? (
           kind === "image" ? (
-            <img src={url} alt={String(data.title)} draggable={false}
+            imageError ? <div className="node-load-error" role="status"><span>图片加载失败</span><button className="nodrag nopan" onClick={()=>{retryAsset();setRetry(v=>v+1);}}>重试加载</button></div> : <img key={retry} src={url} alt={String(data.title)} draggable={false} onError={()=>setImageError(true)}
               onLoad={event => mediaSize(id, asset.id, event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)} />
           ) : (
             <MediaPlayer
               key={asset.id}
               asset={asset}
               kind={kind === "video" ? "video" : "audio"}
+              accessory={kind==='audio'?<button className="node-replace nodrag nopan" aria-label="替换素材" title="替换素材" onClick={()=>action(id,'replace')}><Replace size={12}/><span>替换</span></button>:undefined}
               onDimensions={(width, height) => mediaSize(id, asset.id, width, height)}
             />
           )
         ) : (
-          <div className="node-placeholder">
-            <Icon size={30} strokeWidth={1} />
-            <span>{kind === "image" ? "点击生成，或上传图片" : `点击添加${kindNames[kind]}内容`}</span>
-            <button className="nodrag" onClick={() => action(id, "upload")}>
-              <Upload size={12} />
-              选择文件
-            </button>
-          </div>
+          <div className="node-load-error" role="status"><Icon size={28}/><span>素材暂时无法加载</span><button className="nodrag nopan" onClick={retryAsset}>重试加载</button></div>
         )}
         {active && <div className="node-task-overlay nodrag nopan" role="status"><strong>{statusLabel[job.status] || job.status}</strong><span>{job.stage}</span>{Number.isFinite(job.progress) && <><progress value={job.progress} max={1}/><span>{Math.round(job.progress*100)}%</span></>}<button disabled={job.status === 'cancel_requested'} onClick={() => action(id,'cancel-job')}>取消任务</button></div>}
       </div>
-      {asset && kind !== "text" && (
+      {asset && kind !== "text" && kind !== "audio" && (
         <button
           className="node-replace nodrag nopan"
           aria-label="替换素材"

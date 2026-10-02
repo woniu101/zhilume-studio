@@ -1,0 +1,6 @@
+.media-node.is-empty { height:100%; min-height:176px; }
+.media-node.is-empty .node-content { height:100%; min-height:176px; padding:0; }
+.empty-node-content,.node-load-error { width:100%; height:100%; min-height:150px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:20px 14px; box-sizing:border-box; color:var(--muted); font-size:12px; }
+.empty-node-content>svg { flex-shrink:0; }
+.empty-node-content button,.node-load-error button { height:28px; padding:0 10px; border-radius:7px; font-size:12px; gap:5px; }
+.media-node.is-file-over { border-color:var(--accent); background:var(--tint); box-shadow:inset 0 0 0 1px var(--accent); }

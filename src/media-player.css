@@ -172,7 +172,7 @@
   line-height: 1;
   color: inherit !important;
 }
-.rate-label select {
+.rate-label .select-trigger {
   font-size: 10px;
   width: 38px;
   margin: 0;
@@ -304,10 +304,6 @@
   white-space: nowrap;
   border: 0;
 }
-.node-content.audio {
-  padding: 0 !important;
-  min-height: 140px !important;
-}
 .node-replace {
   position: absolute;
   bottom: -39px;
@@ -411,8 +407,16 @@
 .media-node.kind-video .node-replace {
   bottom: 36px;
 }
-.media-node.kind-audio .node-replace {
-  bottom: 8px;
+.media-node.kind-audio .audio-player .node-replace {
+  position:static;
+  flex:none;
+  margin-left:auto;
+  transform:none;
+}
+.media-node.kind-audio .audio-player .player-actions { margin-left:0; }
+@container (max-width:250px) {
+  .media-node.kind-audio .audio-player .node-replace { padding:2px 5px; }
+  .media-node.kind-audio .audio-player .node-replace span { display:none; }
 }
 .media-node:hover .node-replace,
 .media-node.selected .node-replace,
@@ -421,7 +425,7 @@
   pointer-events: auto;
   transform: translate(-50%, 0);
 }
-.media-node.kind-audio {
+.media-node.kind-audio.has-content {
   height: 108px;
   min-height: 108px;
   container-type: inline-size;
@@ -452,7 +456,6 @@
 @container (max-width: 280px) {
   .media-node.kind-audio .media-time > span { display: none; }
   .media-node.kind-audio .player-actions { gap: 2px; }
-  .media-node.kind-audio .rate-label select,
   .media-node.kind-audio .media-icon,
   .media-node.kind-audio .audio-play-button { width: 20px; }
 }
@@ -638,9 +641,14 @@
 .video-player:not(.is-preview):not(:fullscreen) .media-time > span { display: none; }
 .video-player .player-actions { order: 4; margin-left: 0; gap: 2px; }
 .video-player .media-icon { width: 20px; height: 20px; padding: 3px; }
-.video-player .rate-label select { width: 29px; padding: 3px 0; font-size: 10px; }
+.video-player .rate-label .select-trigger { width: 29px; padding: 3px 0; font-size: 10px; }
 .video-player .volume-control > input { bottom: 23px; }
 .video-player:fullscreen .media-icon { width: 30px; height: 30px; }
 
 .media-player.is-canvas, .is-canvas .waveform-track { cursor: grab; }
 .media-player.is-canvas:active, .is-canvas .waveform-track:active { cursor: grabbing; }
+
+.media-player .rate-label .select-trigger { margin:0; width:46px; height:24px; min-height:0; padding:2px 4px; font-size:10px; gap:2px; }
+.media-player .rate-label .select-chevron { width:10px; height:10px; }
+
+.video-player .rate-label .select-trigger { height:20px; padding:0 3px; }

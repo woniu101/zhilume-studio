@@ -1,3 +1,4 @@
+import type { SessionVault } from './connection';
 declare global {
   interface Window {
     zhilumeDesktop?: {
@@ -12,9 +13,9 @@ declare global {
         dispose(id: string): Promise<void>;
         onProgress(callback: (value: { id: string; phase: string; progress: number | null }) => void): () => void;
       };
-      readSession: () => Promise<{ base: string; token: string } | null>;
+      readSession: () => Promise<SessionVault | null>;
       writeSession: (
-        value: { base: string; token: string } | null,
+        value: SessionVault | null,
       ) => Promise<boolean>;
     };
   }
@@ -29,22 +30,19 @@ export class ApiError extends Error {
     super(message);
   }
 }
-export const connection = {
-  base:
-    localStorage.getItem("zhilume.server") ||
-    (location.protocol === "app:" ? "http://127.0.0.1:4310" : location.origin),
-  token: sessionStorage.getItem("zhilume.session") || "",
-};
+import { connection, reportFailure, connectionEpoch } from './connection';
+export { connection, login, logout, restoreDesktopSession } from './connection';
 export async function api(
   path: string,
   method = "GET",
   body?: unknown,
 ): Promise<any> {
+  const epoch = connectionEpoch(), base = connection.base, token = connection.token;
   const binary = body instanceof Blob;
-  const response = await fetch(connection.base + "/api/v1" + path, {
+  const response = await fetch(base + "/api/v1" + path, {
     method,
     headers: {
-      Authorization: "Bearer " + connection.token,
+      Authorization: "Bearer " + token,
       ...(body !== undefined
         ? {
             "Content-Type": binary
@@ -54,14 +52,18 @@ export async function api(
         : {}),
     },
     body: body === undefined ? undefined : binary ? body : JSON.stringify(body),
+    signal: AbortSignal.timeout(15000),
   }).catch(() => {
+    if (epoch === connectionEpoch()) reportFailure(0);
     throw new ApiError(
       0,
       "network_error",
       "无法连接 Server，或请求被跨域规则阻止。请检查服务是否启动，以及两端版本是否一致。",
     );
   });
+  if (epoch !== connectionEpoch()) throw new ApiError(0, "connection_changed", "服务已切换，请在原服务查看操作结果");
   if (!response.ok) {
+    reportFailure(response.status);
     const error = await response.json().catch(() => ({}));
     throw new ApiError(
       response.status,
@@ -69,7 +71,9 @@ export async function api(
       error.message || `请求失败 (${response.status})`,
     );
   }
-  return response.status === 204 ? null : response.json();
+  const value = response.status === 204 ? null : await response.json();
+  if (epoch !== connectionEpoch()) throw new ApiError(0,"connection_changed","服务已切换");
+  return value;
 }
 export const mediaUrl = (url: string) => connection.base + url;
 export function uploadAsset(
@@ -137,32 +141,6 @@ export function mergeAssets(previous: Record<string, any>, incoming: any[]) {
       ];
     }),
   );
-}
-export async function login(base: string, token: string) {
-  const normalized = base.trim().replace(/\/$/, "");
-  if (normalized && !/^https?:\/\//.test(normalized))
-    throw new Error("请输入 http:// 或 https:// 开头的 Server 地址");
-  connection.base = normalized;
-  const result = await api("/session", "POST", { token });
-  connection.token = result.token;
-  sessionStorage.setItem("zhilume.session", result.token);
-  localStorage.setItem("zhilume.server", normalized);
-  await window.zhilumeDesktop?.writeSession({
-    base: normalized,
-    token: result.token,
-  });
-}
-export async function restoreDesktopSession() {
-  const saved = await window.zhilumeDesktop?.readSession();
-  if (saved) {
-    connection.base = saved.base;
-    connection.token = saved.token;
-  }
-}
-export function logout() {
-  connection.token = "";
-  sessionStorage.removeItem("zhilume.session");
-  void window.zhilumeDesktop?.writeSession(null);
 }
 export const sizeLabel = (bytes: number) =>
   bytes < 1024 ** 2

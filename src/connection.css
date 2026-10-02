@@ -1,0 +1,22 @@
+.connection-button { cursor:pointer; max-width:300px; }
+.connection-form { display:grid; gap:14px; }
+.connection-form label { display:grid; gap:7px; margin:0; }
+.connection-form label input { margin-top:0; }
+.connection-form .connection-check { display:flex; align-items:center; gap:8px; font-size:12px; }
+.connection-check input { width:16px; height:16px; margin:0; }
+.connection-actions { justify-content:flex-end; }
+.connection-summary { display:grid; gap:8px; margin-bottom:20px; padding-bottom:16px; border-bottom:1px solid var(--border); }
+.connection-summary>span { color:var(--muted); overflow-wrap:anywhere; font-size:12px; }
+.recent-servers { display:grid; gap:6px; max-height:160px; overflow:auto; }
+.recent-server { display:flex; gap:6px; }
+.recent-server>button:first-child { flex:1; min-width:0; justify-content:flex-start; text-align:left; }
+.recent-server span { overflow:hidden; text-overflow:ellipsis; }
+.recent-server small { display:block; color:var(--muted); font-size:11px; overflow-wrap:anywhere; }
+.connection-pill[data-status="incompatible"] .dot,.connection-pill[data-status="unauthorized"] .dot { background:#ef8d8d; }
+.project-load-message { padding:70px 20px; text-align:center; display:grid; justify-items:center; gap:16px; }
+
+.project-skeleton { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin:20px 0; }
+.project-skeleton span { height:160px; border-radius:12px; background:var(--panel); border:1px solid var(--border); }
+
+.login-page { padding:24px; overflow:auto; height:100vh; box-sizing:border-box; }
+.login-card { max-height:calc(100vh - 48px); overflow:auto; }
