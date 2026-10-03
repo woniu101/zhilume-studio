@@ -32,6 +32,13 @@ export class ApiError extends Error {
 }
 import { connection, reportFailure, connectionEpoch } from './connection';
 export { connection, login, logout, restoreDesktopSession } from './connection';
+/** Freeze the destination before awaiting a save or other preparation. */
+export function captureApi(): typeof api {
+  const epoch = connectionEpoch();
+  return (...args) => epoch === connectionEpoch() ? api(...args) : Promise.reject(
+    new ApiError(0, 'connection_changed', '服务已切换，请回到原服务继续操作'),
+  );
+}
 export async function api(
   path: string,
   method = "GET",

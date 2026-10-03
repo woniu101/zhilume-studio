@@ -1,4 +1,5 @@
 import { Select } from './Select';
+import { CanvasPersistence } from './canvas-persistence';
 import { NodeVersions } from './generation/NodeVersions';
 import { NodeTask, NodeTaskStatus, taskActive } from './generation/NodeTask';
 import { receiveResults, replaceContent, canSwitchKind, snapshot, type NodeResult } from './node-content';
@@ -394,7 +395,16 @@ function Workspace({
       library?: boolean;
       position?: { x: number; y: number };
     }>({});
-  const draftKey = `zhilume.draft.${connection.serverId || connection.base}.${project.id}`;
+  const draftKey = `zhilume.draft.${scope.current.serverId || scope.current.base}.${project.id}`;
+  const canvasPersistence = useRef<CanvasPersistence | null>(null);
+  if (!canvasPersistence.current) canvasPersistence.current = new CanvasPersistence({
+    read: () => api(`/projects/${project.id}/canvas`),
+    write: (document, baseRevision) => api(`/projects/${project.id}/canvas`, 'PUT', { ...document, baseRevision }),
+    acknowledge: (document, version) => {
+      revision.current = version;
+      saved.current = JSON.stringify(document);
+    },
+  });
   useCanvasClipboard({
     blocked: !!dialog || !!composer || conflict || !loaded,
     document: () => live.current,
@@ -484,12 +494,7 @@ function Workspace({
     setSaveState("保存中…");
     saving.current = (async () => {
       try {
-        const result = await api(`/projects/${project.id}/canvas`, "PUT", {
-          ...document,
-          baseRevision: revision.current,
-        });
-        revision.current = result.revision;
-        saved.current = fingerprint;
+        await canvasPersistence.current!.save(document, revision.current);
         setSaveState("已保存");
         setSaveError(null);
         if (
@@ -1980,6 +1985,7 @@ function Workspace({
               onClick={() =>
                 void api(`/projects/${project.id}/canvas`)
                   .then((doc) => {
+                    canvasPersistence.current!.reset();
                     revision.current = doc.revision;
                     saved.current = JSON.stringify(
                       cleanDocument(doc.nodes, doc.edges, doc.viewport),

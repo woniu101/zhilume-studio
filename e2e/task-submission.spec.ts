@@ -33,14 +33,15 @@ test('Server language settings never echo saved secrets',async({page})=>{
  await page.addInitScript(()=>sessionStorage.setItem('zhilume.admin.session','e2e-local-fixture-only'));
  await page.goto('http://127.0.0.1:4319/admin/');
  await page.getByRole('button',{name:'语言模型',exact:true}).click();
+ await page.getByRole('button',{name:'添加服务',exact:true}).click();
  const name='语言服务 '+Date.now();
- await page.getByLabel('名称',{exact:true}).fill(name);
+ await page.getByLabel('服务名称',{exact:true}).fill(name);
  await page.getByLabel('API 根地址').fill('https://provider.invalid/v1');
  await page.getByLabel('API Key').fill('browser-fixture-not-a-real-key');
  await page.getByLabel('模型标识').fill('fixture-model');
- await page.getByRole('button',{name:'保存配置'}).click();
+ await page.getByRole('button',{name:'保存服务'}).click();
  await expect(page.getByText(name,{exact:true})).toBeVisible();
- await expect(page.getByLabel('API Key')).toHaveValue('');
+ await expect(page.getByRole('dialog',{name:'语言模型服务配置'})).toHaveCount(0);
  await page.locator('article').filter({has:page.getByText(name,{exact:true})}).getByRole('button',{name:'编辑',exact:true}).click();
  await expect(page.getByLabel('API Key')).toHaveValue('');
  await page.screenshot({path:'test-results/language-provider-settings.png'});

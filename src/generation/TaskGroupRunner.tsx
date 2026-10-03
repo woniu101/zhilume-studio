@@ -1,6 +1,6 @@
 import { Select } from '../Select';
 import { useEffect, useRef, useState } from 'react';
-import { api } from '../api';
+import { api, captureApi } from '../api';
 import { videoReferences } from './video-draft';
 export function TaskGroupRunner({ nodes, edges, projectId, prepare, flush, done }: { nodes: any[]; edges: any[]; projectId: string; prepare: (n: any) => any; flush: () => Promise<any>; done: () => void }) {
   const [models, setModels] = useState<any>(null), [mode,setMode] = useState('batch'), [error,setError] = useState(''), [busy,setBusy] = useState(false);
@@ -10,6 +10,7 @@ export function TaskGroupRunner({ nodes, edges, projectId, prepare, flush, done 
   useEffect(()=>{api('/models').then(setModels,e=>setError(e.message));},[]);
   const candidates = edges.filter(e=>nodes.some(n=>n.id===e.source)&&nodes.some(n=>n.id===e.target));
   async function submit() {
+    const api = captureApi();
     setError(''); setBusy(true);
     try {
       const tasks = nodes.map(n=>{

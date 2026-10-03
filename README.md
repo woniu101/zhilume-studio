@@ -1,4 +1,6 @@
-# Studio 0.19.0：紧凑底栏与居中放大编辑
+# Studio 0.20.0：创作闭环与保存恢复
+
+本轮修复保存响应丢失造成的误冲突、自动续期后保存恢复、切换服务时的异步提交隔离。Server 0.15.0 修复 Worker 成功任务缺失节点结果记录的问题，必须配套更新。能力与验证边界见 Server `docs/creation-capability-matrix.md`。
 
 类型切换、模型、参数和生成集中到底部；顶部保留模式、历史与展开，取消关闭 X。左侧选项按内容宽度排列，右侧固定“↑ 生成”；下拉区分工具栏与表单样式。展开为最大 860px 的居中放大编辑，点击遮罩或 Esc 逐层关闭子浮层、还原，草稿保留。离线状态单独提示。
 
@@ -14,7 +16,7 @@
 
 # Zhilume Studio
 
-织镜创作画布。React + TypeScript + React Flow + Tiptap，共用 Web 和 Electron 界面。当前为 **0.17.0 初版开发**，本轮配套 Server 0.13.2；Worker 本轮未修改。需要调整时直接重构，不保留历史开发版兼容层。
+织镜创作画布。React + TypeScript + React Flow + Tiptap，共用 Web 和 Electron 界面。当前为 **0.20.0 初版开发**，本轮配套 Server 0.15.0；Worker 本轮未修改。需要调整时直接重构，不保留历史开发版兼容层。
 
 最新 EXE 固定为 `release/win-unpacked/Zhilume Studio.exe`，执行 `npm run pack` 直接更新该目录；应用数据保留在用户数据目录。
 

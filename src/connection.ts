@@ -53,20 +53,29 @@ function remember(profile: ServerProfile) {
 export async function login(base: string, credential: string, signal?: AbortSignal, name?: string) {
   if(connecting)throw new Error('已有连接操作正在进行');
   connecting=true;
-  try { await probeTask; await connectCandidate(base,credential,signal,name); }
+  const version = epoch;
+  try { await probeTask; await connectCandidate(base,credential,signal,name,version); }
   finally { connecting=false; if(connection.token && !['unauthorized','incompatible'].includes(state.status))schedule(state.status==='offline'?1000:15000); }
 }
-async function connectCandidate(base: string, credential: string, signal?: AbortSignal, name?: string) {
+async function connectCandidate(base: string, credential: string, signal?: AbortSignal, name?: string, version = epoch) {
   base = normalizeServer(base);
   const info = await system(base, signal);
   const saved = profiles.find(p => p.base === base && p.serverId === info.serverId);
   const switching = connection.base !== base || (!!connection.serverId && connection.serverId !== info.serverId);
   let session: any;
   if (credential) session = await post(base, '/session', { token:credential }, signal);
+  else if (saved?.token) {
+    try {
+      await request(base, '/session/status', { headers:{Authorization:'Bearer '+saved.token}, signal });
+      session = saved;
+    } catch (error:any) {
+      if (error.status !== 401 || !saved.refreshToken) throw error;
+      session = await post(base, '/session/renew', { refreshToken:saved.refreshToken }, signal);
+    }
+  }
   else if (saved?.refreshToken) session = await post(base, '/session/renew', { refreshToken:saved.refreshToken }, signal);
-  else if (saved?.token) { await request(base, '/session/status', { headers:{Authorization:'Bearer '+saved.token}, signal }); session = saved; }
   else throw new Error('请输入此 Server 的访问凭证');
-  if (signal?.aborted) throw new DOMException('连接已取消','AbortError');
+  if (signal?.aborted || version !== epoch) throw new DOMException('连接已取消','AbortError');
   if (switching && !window.dispatchEvent(new Event('zhilume:before-switch', {cancelable:true}))) {
     profiles=[{base,...session,serverId:info.serverId,name:name?.trim()||saved?.name||new URL(base).host},...profiles.filter(p=>p.base!==base)];
     publish({profiles});await persist();throw new Error('当前草稿无法保存，请先导出画布再切换服务');
@@ -104,6 +113,8 @@ async function probe() {
       if (version !== epoch) return;
       Object.assign(connection, session);
       remember({...connection,name:state.name}); await persist().catch(e => publish({detail:e.message}));
+      if (version !== epoch) return;
+      window.dispatchEvent(new Event('zhilume:session-restored'));
     }
     if (version !== epoch) return;
     connection.serverId = info.serverId;

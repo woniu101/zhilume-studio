@@ -78,3 +78,43 @@ test('missing asset keeps a retry state instead of an upload placeholder',async(
   await signIn(page);await page.getByText(project.name,{exact:true}).click();
   await expect(page.getByText('素材暂时无法加载')).toBeVisible();await expect(page.getByRole('button',{name:'上传图片',exact:true})).toHaveCount(0);await expect(page.getByRole('button',{name:'重试加载',exact:true})).toBeVisible();
 });
+
+test('reconnecting with valid saved authorization does not rotate it unnecessarily',async({page})=>{
+  await signIn(page);let renewals=0;
+  page.on('request',r=>{if(r.url().endsWith('/session/renew'))renewals++;});
+  await page.getByRole('button',{name:'管理 Server 连接'}).click();
+  await page.getByRole('button',{name:'连接 Server',exact:true}).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(renewals).toBe(0);
+});
+
+test('a captured operation cannot send a job after the connection changes',async({page})=>{
+  await signIn(page);let submissions=0;
+  page.on('request',r=>{if(r.method()==='POST'&&r.url().endsWith('/jobs'))submissions++;});
+  const code=await page.evaluate(async()=>{
+    const {captureApi}=await import('/src/api.ts');
+    const {logout}=await import('/src/connection.ts');
+    const send=captureApi();logout();
+    try{await send('/jobs','POST',{projectId:'must-not-send'});return 'unexpected';}
+    catch(e:any){return e.code;}
+  });
+  expect(code).toBe('connection_changed');expect(submissions).toBe(0);
+});
+
+test('disconnect while a connection response is delayed cannot resurrect that connection',async({page})=>{
+  await signIn(page);
+  let release!:()=>void, received=false;
+  const gate=new Promise<void>(resolve=>{release=resolve;});
+  await page.route('**/api/v1/session',async route=>{
+    const response=await route.fetch();received=true;await gate;await route.fulfill({response});
+  });
+  await page.evaluate(async()=>{
+    const {login}=await import('/src/connection.ts');
+    (window as any).pendingLogin=login('http://127.0.0.1:4319','e2e-local-fixture-only').then(()=> 'connected',e=>e.name);
+  });
+  await expect.poll(()=>received).toBe(true);
+  await page.evaluate(async()=>{const {logout}=await import('/src/connection.ts');logout();});
+  release();
+  expect(await page.evaluate(()=>(window as any).pendingLogin)).toBe('AbortError');
+  await expect(page.getByRole('heading',{name:'连接你的创作服务'})).toBeVisible();
+});

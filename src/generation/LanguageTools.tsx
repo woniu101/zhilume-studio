@@ -6,7 +6,7 @@ import type { LanguageSelection } from './model-selection';
 import { useNodeTask } from './NodeTask';
 import { Select } from '../Select';
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { api } from '../api';
+import { api, captureApi } from '../api';
 export const LanguageProject = createContext('');
 
 /** Suggestions remain separate from the node draft until the author applies them. */
@@ -33,6 +33,7 @@ export function LanguageTools({ value, apply, purpose = 'general', generate = fa
   const busy = (generate && nodeBusy) || submitting || (job && !['succeeded','failed','cancelled','interrupted'].includes(job.status));
   async function run() {
     if (busy || !modelId || !value.trim()) return;
+    const api = captureApi();
     const input = { profileId: modelId, text: value, purpose, context, referenceAssetIds: useImages && models.find(m => m.profileId === modelId)?.capabilities.includes('vision') ? referenceAssetIds : [] };
     const fingerprint = JSON.stringify({input, targetWorkerId});
     if (selection?.request?.fingerprint === fingerprint) request.current = selection.request;
