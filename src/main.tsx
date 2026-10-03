@@ -1,5 +1,6 @@
 import { Select } from './Select';
 import { CanvasPersistence } from './canvas-persistence';
+import { fitContentLayout } from './content-layout';
 import { NodeVersions } from './generation/NodeVersions';
 import { NodeTask, NodeTaskStatus, taskActive } from './generation/NodeTask';
 import { receiveResults, replaceContent, canSwitchKind, snapshot, type NodeResult } from './node-content';
@@ -469,10 +470,13 @@ function Workspace({
       [...new Set(inputs.filter(n => n?.data.kind === "image" && n.data.assetId).map(n => String(n!.data.assetId)))]);
   }
   function mediaSize(id: string, assetId: string, width: number, height: number) {
-    const old = live.current.nodes.find(node => node.id === id);
-    if (!old) return;
-    const fitted = fitMediaNode(old, assetId, width, height);
-    if (fitted !== old) assign({ ...live.current, nodes: live.current.nodes.map(node => node.id === id ? fitted : node) });
+    const next = fitContentLayout(live.current, id, assetId, width, height);
+    if (next === live.current) return;
+    // Metadata can arrive after another edit. Complete matching history snapshots too,
+    // so content adoption and its layout remain one undoable action.
+    undo.current = undo.current.map(doc => fitContentLayout(doc, id, assetId, width, height));
+    redo.current = redo.current.map(doc => fitContentLayout(doc, id, assetId, width, height));
+    assign(next);
   }
   const flush = useCallback(async () => {
     if (blocked.current) throw new Error("请先处理画布保存冲突");

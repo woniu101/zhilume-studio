@@ -80,14 +80,14 @@ export function cleanDocument(
 export function fitMediaNode(node: CanvasNode, assetId: string, width: number, height: number): CanvasNode {
   if (node.data.assetId !== assetId || !["image", "video"].includes(node.data.kind) ||
     !Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return node;
+  // Fit each content version once. Reloading metadata must preserve manual sizing/layout.
+  if (node.data.mediaSize?.assetId === assetId && node.data.mediaSize.width === width &&
+    node.data.mediaSize.height === height) return node;
   const ratio = width / height;
   const currentWidth = node.width || Number(node.style?.width) || node.measured?.width || 280;
   // Even wide videos need enough room below the centered play button for controls.
   const nextWidth = Math.max(220, currentWidth, node.data.kind === "video" ? ratio * 160 : 0);
   const nextHeight = nextWidth / ratio;
-  if (node.data.mediaSize?.assetId === assetId && node.data.mediaSize.width === width &&
-    node.data.mediaSize.height === height && node.width === nextWidth && node.height === nextHeight &&
-    node.style?.width === nextWidth && node.style?.height === nextHeight) return node;
   return { ...node, width: nextWidth, height: nextHeight,
     style: { ...node.style, width: nextWidth, height: nextHeight },
     data: { ...node.data, mediaSize: { assetId, width, height } } };
