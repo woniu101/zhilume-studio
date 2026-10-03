@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 import {readFileSync} from 'node:fs';
 import {initialVideoDraft} from '../src/generation/video-draft';
-import {selectOption} from './select';
+import {selectOption,chooseReference} from './select';
 const base='http://127.0.0.1:4319/api/v1',headers={Authorization:'Bearer e2e-local-fixture-only'};
 test('mixed references stay directly usable and never overlap the fixed actions at short heights',async({page,request})=>{
   const assets=[];
@@ -35,6 +35,6 @@ test('mixed references stay directly usable and never overlap the fixed actions 
   }
   await panel.getByRole('button',{name:'移除参考 1',exact:true}).click();await expect(panel.locator('.reference-card')).toHaveCount(2);
   await panel.getByRole('button',{name:/添加图片 ·/}).click();
-  await selectOption(page.getByRole('dialog',{name:'添加图片',exact:true}).getByLabel('添加图片',{exact:true}),assets[0].id);
+  await chooseReference(page.getByRole('group',{name:'添加图片',exact:true}),assets[0].id);
   await page.keyboard.press('Escape');await expect(panel.locator('.reference-card')).toHaveCount(3);
 });

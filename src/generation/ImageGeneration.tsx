@@ -1,3 +1,4 @@
+import {ReferenceBrowser} from './ReferenceBrowser';
 import {GenerateButton, ComposerLayout, ComposerPrompt, OfflineNotice} from './ComposerLayout';
 import { FloatingPanel, PanelAction } from '../overlays';
 import { initialProfile } from './model-selection';
@@ -171,9 +172,9 @@ export function ImageGeneration({ assets, value, update, session, imported, subm
       </div>}
       <input ref={input} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden aria-label="上传参考图片"
         onChange={e => { void upload(Array.from(e.target.files || [])); e.target.value = ""; }} />
-      {menu === "references" && <FloatingPanel anchor={referencesAnchor} title="选择参考图片" close={() => setMenu(null)} disabled={busy || !!uploading}>
+      {menu === "references" && <FloatingPanel anchor={referencesAnchor} title="选择参考图片" wide close={() => setMenu(null)} disabled={busy || !!uploading}>
         <div className="reference-input"><button onClick={() => input.current?.click()}><Plus size={14} /> 上传参考图</button><span className="muted">也可将图片拖入面板</span></div>
-        <label>添加参考图<Select aria-label="添加参考图" value="" disabled={refs.length >= referenceLimit} onChange={e => { if (e.target.value) addReferences([e.target.value]); }}><option value="">从已有图片选择…</option>{images.filter(a => !refs.includes(a.id)).map(a => <option key={a.id} value={a.id}>{a.filename}</option>)}</Select></label>
+        <ReferenceBrowser label="添加参考图" assets={images} selectedIds={refs} disabled={refs.length >= referenceLimit || busy || !!uploading} choose={asset => addReferences([asset.id])}/>
         <p className="muted">{referenceProfile ? `当前执行配置最多 ${referenceLimit} 张` : `离线可准备最多 ${referenceLimit} 张，提交时按在线配置校验`}。拖动卡片可排序，第一张决定参考输出比例。</p>
       </FloatingPanel>}
       {preview && <FloatingPanel anchor={previewAnchor} title="参考图片预览" wide close={() => setPreview(null)}><div className="reference-preview checkerboard"><img src={mediaUrl(images.find(a => a.id === preview)?.url || "")} alt="参考图大图" /></div></FloatingPanel>}

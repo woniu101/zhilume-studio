@@ -1,4 +1,4 @@
-import { selectOption } from './select';
+import { selectOption, chooseReference } from './select';
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
@@ -30,7 +30,7 @@ test('generation preserves inputs across models, orders references and retries w
   await expect(dialog.getByLabel('提示词', { exact: true })).toHaveValue('把两张图融合为水彩插画');
   await dialog.getByRole('button', { name: '多图参考', exact: true }).click();
   await dialog.getByRole('button', { name: '添加参考素材' }).click();
-  await selectOption(page.getByLabel('添加参考图'), assets[1].id);await page.keyboard.press('Escape');
+  await chooseReference(page.getByRole('group',{name:'添加参考图',exact:true}), assets[1].id);await page.keyboard.press('Escape');
   await dialog.getByRole('button', { name: '将参考图 2 向前移动' }).click();
   await selectOption(dialog.getByLabel('模型', { exact: true }), 'qwen-image-2512');
   await expect(dialog.getByRole('status')).toContainText('不支持当前操作');
@@ -178,7 +178,7 @@ test('compact composer keeps nested controls open, maps reference roles and resp
   const { project, assets, dialog } = await setup(page, request);
   await dialog.getByRole('button', { name: '多图参考', exact: true }).click();
   await dialog.getByRole('button', { name: '添加参考素材' }).click();
-  await selectOption(page.getByLabel('添加参考图'), assets[1].id);await page.keyboard.press('Escape');
+  await chooseReference(page.getByRole('group',{name:'添加参考图',exact:true}), assets[1].id);await page.keyboard.press('Escape');
   await expect(dialog.getByRole('button', { name: '添加参考素材' })).toBeDisabled();
   const cards = dialog.locator('.generation-references li');
   await cards.nth(1).dragTo(cards.nth(0));
@@ -225,7 +225,7 @@ test('image parameters are compact and adding references requests an explicit mo
   if(await page.getByRole('dialog',{name:'输出参数设置'}).count())await page.keyboard.press('Escape');
   await dialog.getByRole('button', { name: '指令编辑', exact: true }).click();
   await dialog.getByRole('button', { name: '添加参考素材' }).click();
-  await selectOption(page.getByLabel('添加参考图'), assets[1].id);await page.keyboard.press('Escape');
+  await chooseReference(page.getByRole('group',{name:'添加参考图',exact:true}), assets[1].id);await page.keyboard.press('Escape');
   await expect(dialog.getByLabel('模型', { exact: true })).toHaveAttribute('data-value', 'qwen-image-2512');
   await dialog.getByRole('button', { name: '切换至 Qwen 2.1' }).click();
   await expect(dialog.getByLabel('模型', { exact: true })).toHaveAttribute('data-value', 'qwen-image-2.1');

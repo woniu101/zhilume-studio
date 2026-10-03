@@ -1,4 +1,4 @@
-import { selectOption } from './select';
+import { selectOption, chooseReference } from './select';
 import { test, expect } from '@playwright/test';
 import { readFile, readFileSync } from 'node:fs';
 import { promisify } from 'node:util';
@@ -18,7 +18,7 @@ async function setup(page: any, request: any, online = true) {
   const panel = page.getByRole('region', { name: '语音合成', exact: true });
   await expect(panel).toBeVisible();
   await panel.getByRole('button',{name:/音色参考 ·/}).click();
-  await selectOption(page.getByRole('combobox', { name: '音色参考', exact: true }), asset.id);
+  await chooseReference(page.getByRole('group', { name: '音色参考', exact: true }), asset.id);
 
   await page.getByLabel('音色参考终点').fill('1.5');await page.keyboard.press('Escape');
   await panel.getByLabel('合成文字').fill('欢迎来到织镜。');
@@ -31,7 +31,7 @@ test('speech drafts, reference roles, model limits and retry idempotency', async
   await page.keyboard.press('Escape');await panel.getByRole('button',{name:/情绪：/}).click();
   await selectOption(page.getByLabel('情绪方式'), 'reference');
   await page.getByRole('dialog',{name:'情绪设置'}).getByRole('button',{name:/情绪参考 ·/}).click();
-  await selectOption(page.getByRole('combobox', { name: '情绪参考', exact: true }), asset.id);
+  await chooseReference(page.getByRole('group', { name: '情绪参考', exact: true }), asset.id);
   await page.getByLabel('情绪参考起点').fill('0.5');
   await page.getByLabel('情绪参考终点').fill('2');
   await page.keyboard.press('Escape');await page.getByLabel('情绪方式').click();
