@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, u
 import { createPortal } from 'react-dom';
 import './overlays.css';
 
+export const OverlayLayer = createContext(900);
 const Parent = createContext<string | null>(null);
 type Entry = { id: string; parent: string | null; close: () => void };
 const stack: Entry[] = [];
@@ -43,7 +44,8 @@ export function FloatingPanel({ anchor, close, title, children, wide = false, di
   anchor: RefObject<HTMLElement | null>; close: () => void; title: string; children: ReactNode; wide?: boolean; disabled?: boolean;
 }) {
   const surface = useRef<HTMLDivElement>(null);
-  const { id, parent } = useOverlay(true, close, anchor, surface);
+  const { id } = useOverlay(true, close, anchor, surface);
+  const layer = useContext(OverlayLayer);
   const [position, setPosition] = useState({ left: 12, top: 12, maxHeight: 400, width: 400 });
   useLayoutEffect(() => {
     const update = () => {
@@ -67,10 +69,10 @@ export function FloatingPanel({ anchor, close, title, children, wide = false, di
     const focus = requestAnimationFrame(() => surface.current?.focus());
     return () => {observer.disconnect();cancelAnimationFrame(frame);cancelAnimationFrame(focus);window.removeEventListener('resize',update);window.removeEventListener('scroll',update,true);};
   }, [wide]);
-  return createPortal(<Parent.Provider value={id}><div ref={surface} role="dialog" aria-label={title} tabIndex={-1} data-editor-overlay className="floating-panel generation nodrag nopan nowheel" style={{...position,zIndex:parent ? 940 : 900}} onKeyDown={e => e.stopPropagation()}>
+  return createPortal(<Parent.Provider value={id}><OverlayLayer.Provider value={layer+40}><div ref={surface} role="dialog" aria-label={title} tabIndex={-1} data-editor-overlay className="floating-panel generation nodrag nopan nowheel" style={{...position,zIndex:layer}} onKeyDown={e => e.stopPropagation()}>
     <header><strong>{title}</strong><button aria-label={`关闭${title}`} onClick={() => {close();anchor.current?.focus();}}>×</button></header>
     <fieldset className="floating-body" disabled={disabled}>{children}</fieldset>
-  </div></Parent.Provider>, document.body);
+  </div></OverlayLayer.Provider></Parent.Provider>, document.body);
 }
 
 export function PanelAction({ title, label, children, wide = false, disabled = false, active=false }: { title: string; label: ReactNode; children: ReactNode; wide?: boolean; disabled?: boolean; active?:boolean }) {

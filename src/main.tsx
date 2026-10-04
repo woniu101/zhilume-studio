@@ -1,3 +1,5 @@
+import { documentAssetIds } from './document-assets';
+import { AssetCatalog, resolveAssets } from './asset-catalog';
 import { Select } from './Select';
 import { CanvasPersistence } from './canvas-persistence';
 import { fitContentLayout } from './content-layout';
@@ -632,14 +634,14 @@ function Workspace({
   const refresh = useCallback(async () => {
     const epoch = connectionEpoch();
     const values = await Promise.all([
-      api("/assets"),
+      resolveAssets(documentAssetIds(live.current.nodes), api),
       api(`/jobs?projectId=${project.id}`),
       api("/workers"),
       api(`/projects/${project.id}/library`),
       api(`/projects/${project.id}/node-results`),
     ]);
     if (epoch !== connectionEpoch()) return;
-    setAssets((previous) => mergeAssets(previous, [...values[0], ...values[4].map((r:any) => r.output)]));
+    setAssets((previous) => ({...previous,...mergeAssets(previous, [...values[0], ...values[3].items.map((item:any) => item.asset), ...values[4].map((r:any) => r.output)])}));
     setJobs(values[1]);
     setNodeResults(values[4]);
     setWorkers(values[2]);
@@ -1329,7 +1331,7 @@ function Workspace({
             </ReactFlow>
             </ConnectionPreview.Provider>
           </NodeContext.Provider>
-          {composer && composerNode && !dialog && <LanguageProject.Provider value={project.id}><NodeComposer nodeId={composerNode.id} layout={composerNode} headerActions={<NodeVersions node={composerNode} assets={assets} restore={v => changeNode(composerNode.id,{assetId:v.assetId,text:v.text,html:v.html})}
+          {composer && composerNode && !dialog && <AssetCatalog.Provider value={{projectId:project.id,canvasIds:nodes.flatMap(n => n.data.assetId ? [String(n.data.assetId)] : []),remember:asset => setAssets(previous => ({...previous,...mergeAssets(previous,[asset])}))}}><LanguageProject.Provider value={project.id}><NodeComposer nodeId={composerNode.id} layout={composerNode} headerActions={<NodeVersions node={composerNode} assets={assets} restore={v => changeNode(composerNode.id,{assetId:v.assetId,text:v.text,html:v.html})}
               branch={v => mutate(d => ({...d,nodes:[...d.nodes,createNode(v.kind,{x:composerNode.position.x+360,y:composerNode.position.y},{assetId:v.assetId,text:v.text,html:v.html,title:nextNodeTitle(v.kind,d.nodes)})]}))}/>}
             title={composer.mode === "video" ? "视频生成与参考编辑" : composer.mode === "speech" ? "语音合成" : composer.mode === "image" ? "图片生成与编辑" : `${kindNames[composerNode.data.kind as Kind]}内容`}
             close={() => setComposer(null)} typeControl={<Select variant="toolbar" aria-label="节点内容类型" value={composerNode.data.kind} title="仅无内容、历史、连线或在途任务的空节点可切换类型" disabled={submittingNodes.has(composerNode.id) || !!uploadController.current || !canSwitchKind(composerNode,jobs,live.current.edges)} onChange={e => switchNodeKind(e.target.value as Kind)}>{kinds.map(k => <option key={k} value={k}>{k === "audio" ? "语音生成" : `${kindNames[k]}生成`}</option>)}</Select>}>
@@ -1368,7 +1370,7 @@ function Workspace({
               upload={() => { const id = composerNode.id; setComposer(null); void action(id, "upload"); }} />}
 
             </NodeTask.Provider>
-          </NodeComposer></LanguageProject.Provider>}
+          </NodeComposer></LanguageProject.Provider></AssetCatalog.Provider>}
           <div className="canvas-hint">
             自由画布 <span style={{ margin: "0 9px", opacity: 0.4 }}>/</span>{" "}
             {nodes.filter((n) => n.type === "media").length} 个节点
@@ -1657,7 +1659,7 @@ function Workspace({
           </button>
         </div>
       )}
-      {dialog?.type === "media-tools" && assets[dialog.node.data.assetId] && <MediaTools
+      {dialog?.type === "media-tools" && assets[dialog.node.data.assetId] && <AssetCatalog.Provider value={{projectId:project.id,canvasIds:nodes.flatMap(n => n.data.assetId ? [String(n.data.assetId)] : []),remember:asset => setAssets(previous => ({...previous,...mergeAssets(previous,[asset])}))}}><MediaTools
         asset={assets[dialog.node.data.assetId]} assets={Object.values(assets)} close={() => setDialog(null)}
         complete={(output, replace, operation) => {
           setAssets(current => ({ ...current, ...Object.fromEntries(output.map(a => [a.id, a])) }));
@@ -1688,7 +1690,7 @@ function Workspace({
           await api("/jobs", "POST", { requestId: crypto.randomUUID(), projectId: project.id, nodeId: target, operation, input });
           setTasksOpen(true); await refresh(); notify("已提交 Server 后台任务");
         }}
-      />}
+      /></AssetCatalog.Provider>}
       {dialog?.type === "replace" && (
         <Modal
           title={`${dialog.node.data.assetId ? "替换" : "添加"}${kindNames[dialog.node.data.kind as Kind]}素材`}

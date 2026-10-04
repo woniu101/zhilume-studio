@@ -174,7 +174,7 @@ export function ImageGeneration({ assets, value, update, session, imported, subm
         onChange={e => { void upload(Array.from(e.target.files || [])); e.target.value = ""; }} />
       {menu === "references" && <FloatingPanel anchor={referencesAnchor} title="选择参考图片" wide close={() => setMenu(null)} disabled={busy || !!uploading}>
         <div className="reference-input"><button onClick={() => input.current?.click()}><Plus size={14} /> 上传参考图</button><span className="muted">也可将图片拖入面板</span></div>
-        <ReferenceBrowser label="添加参考图" assets={images} selectedIds={refs} disabled={refs.length >= referenceLimit || busy || !!uploading} choose={asset => addReferences([asset.id])}/>
+        <ReferenceBrowser label="添加参考图" kinds={['image']} selectedIds={refs} disabled={refs.length >= referenceLimit || busy || !!uploading} choose={asset => addReferences([asset.id])}/>
         <p className="muted">{referenceProfile ? `当前执行配置最多 ${referenceLimit} 张` : `离线可准备最多 ${referenceLimit} 张，提交时按在线配置校验`}。拖动卡片可排序，第一张决定参考输出比例。</p>
       </FloatingPanel>}
       {preview && <FloatingPanel anchor={previewAnchor} title="参考图片预览" wide close={() => setPreview(null)}><div className="reference-preview checkerboard"><img src={mediaUrl(images.find(a => a.id === preview)?.url || "")} alt="参考图大图" /></div></FloatingPanel>}

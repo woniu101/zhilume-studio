@@ -61,7 +61,11 @@ test('collage uses selected order and exports the configured pixel size', async 
   await setup(page, request, 'interaction-test.png', 'image');
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: '拼图', exact: true }).click();
-  await dialog.locator('.media-tool-assets button[title="collage-portrait.png"]').last().click();
+  await dialog.getByRole("button",{name:"添加拼图素材",exact:true}).click();
+  const browser=page.getByRole("group",{name:"拼图素材",exact:true});
+  await browser.getByRole("searchbox").fill("collage-portrait");
+  await browser.getByRole("button",{name:"选择 collage-portrait.png",exact:true}).first().click();
+  await page.keyboard.press("Escape");
   await dialog.getByLabel('单格像素').fill('64');
   await dialog.getByLabel('间隔', { exact: true }).fill('0');
   await dialog.getByRole('button', { name: '将第 2 张向前移动' }).click();

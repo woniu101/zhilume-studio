@@ -1,5 +1,6 @@
 import { ConnectionForm } from './ConnectionControl';
-import { hasOverlays } from './overlays';
+import { useContext } from 'react';
+import { hasOverlays, OverlayLayer } from './overlays';
 import brandIcon from "../assets/icon.svg";
 import { useEffect, useState, type ReactNode } from "react";
 import { Monitor, Moon, Sun, X } from "lucide-react";
@@ -61,6 +62,7 @@ export function Modal({
   children: ReactNode;
   close: () => void;
 }) {
+  const layer = useContext(OverlayLayer);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !hasOverlays()) close();
@@ -71,6 +73,7 @@ export function Modal({
   return (
     <div
       className="modal-backdrop"
+      style={{zIndex:layer+100}}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) close();
       }}
@@ -87,7 +90,7 @@ export function Modal({
             <X size={18} />
           </button>
         </header>
-        {children}
+        <OverlayLayer.Provider value={layer+200}>{children}</OverlayLayer.Provider>
       </section>
     </div>
   );

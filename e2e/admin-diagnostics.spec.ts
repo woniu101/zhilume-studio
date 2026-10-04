@@ -34,7 +34,7 @@ test('admin connects by Worker address and secret without network-tool setup', a
   await page.getByLabel('接入密钥', { exact: true }).fill(secret);
   await expect(page.getByLabel('接入密钥')).toHaveAttribute('type', 'password');
   await page.getByRole('button', { name: '测试连接', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('验证通过：测试 Worker');
+  await expect(page.getByRole('status')).toContainText('HTTP 校验通过，保存后建立 WebSocket：测试 Worker');
   await expect(page.getByText('复制接入命令', { exact: true })).toHaveCount(0);
   await page.screenshot({ path: 'test-results/admin-worker-connect.png' });
   await page.getByRole('button', { name: '保存连接', exact: true }).click();

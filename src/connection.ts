@@ -32,7 +32,7 @@ async function request(base: string, path: string, options: RequestInit = {}) {
 async function system(base: string, signal?: AbortSignal) {
   const info = await request(base, '/system', { signal });
   const [major,minor] = String(info.protocolVersion).split('.').map(Number);
-  if (major !== 3 || !Number.isInteger(minor) || minor < 1 || typeof info.serverId !== 'string') throw Object.assign(new Error(`服务协议 ${info.protocolVersion || '未知'}，需要 3.1；请更新 Server`), { incompatible: true });
+  if (major !== 3 || !Number.isInteger(minor) || minor < 2 || typeof info.serverId !== 'string') throw Object.assign(new Error(`服务协议 ${info.protocolVersion || '未知'}，需要 3.2；请更新 Server`), { incompatible: true });
   return info;
 }
 const post = (base: string, path: string, body: object, signal?: AbortSignal) => request(base, path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body), signal });

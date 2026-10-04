@@ -68,7 +68,7 @@ export function SpeechGeneration({ assets, value, update, session, imported, sub
   }
   function reference(role: 'speaker' | 'emotionReference', title: string) {
     const clip = value[role], asset = audio.find(a => a.id === clip.assetId);
-    const controls=<PanelAction title={title} label={asset ? "替换 / 片段" : `${title} · 选择或上传`} wide disabled={busy || !!uploading}><ReferenceBrowser label={title} assets={audio} selectedIds={clip.assetId ? [clip.assetId] : []} disabled={busy || !!uploading} choose={asset=>edit({[role]:{assetId:asset.id,start:0,end:10}})}/><div className="generation-row">
+    const controls=<PanelAction title={title} label={asset ? "替换 / 片段" : `${title} · 选择或上传`} wide disabled={busy || !!uploading}><ReferenceBrowser label={title} kinds={['audio']} selectedIds={clip.assetId ? [clip.assetId] : []} disabled={busy || !!uploading} choose={asset=>edit({[role]:{assetId:asset.id,start:0,end:10}})}/><div className="generation-row">
         <label className="speech-upload"><Upload size={14} />上传<input aria-label={`上传${title}`} type="file" accept="audio/wav,audio/mpeg,audio/flac,audio/ogg,audio/mp4" onChange={e => { void upload(role, e.target.files?.[0]); e.target.value = ''; }} /></label></div>
       {asset && <audio controls preload="metadata" aria-label={`试听${title}原素材`} src={mediaUrl(asset.url)} onLoadedMetadata={e => {
         const duration = e.currentTarget.duration;

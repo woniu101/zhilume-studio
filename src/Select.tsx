@@ -1,5 +1,5 @@
-import { useOverlay } from './overlays';
-import { Children, isValidElement, useEffect, useId, useRef, useState, type ReactNode, type SelectHTMLAttributes, type ChangeEvent } from 'react';
+import { useOverlay, OverlayLayer } from './overlays';
+import { useContext, Children, isValidElement, useEffect, useId, useRef, useState, type ReactNode, type SelectHTMLAttributes, type ChangeEvent } from 'react';
 import { createPortal } from 'react-dom';
 import './select.css';
 import {ChevronDown, Check} from 'lucide-react';
@@ -14,6 +14,7 @@ function optionsFrom(children: ReactNode): Option[] {
 }
 /** Theme-controlled, keyboard accessible single-value selector shared by all editors. */
 export function Select({ children, value, onChange, className = '', displayValue, variant='field', disabled, 'aria-label': label, ...props }: SelectHTMLAttributes<HTMLSelectElement> & {displayValue?:ReactNode; variant?:'field'|'toolbar'}) {
+  const layer = useContext(OverlayLayer);
   const options = optionsFrom(children), current = String(value ?? ''), id = useId();
   const trigger = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false), [index, setIndex] = useState(0);
@@ -46,7 +47,7 @@ export function Select({ children, value, onChange, className = '', displayValue
       onClick={() => setOpen(!open)} onKeyDown={e => { if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) { e.preventDefault(); setOpen(true); } }}>
       <span>{displayValue ?? (options.find(o => o.value === current)?.label || '请选择…')}</span><ChevronDown className="select-chevron" size={14} aria-hidden="true"/>
     </button>
-    {open && createPortal(<div ref={menu} id={id} role="listbox" aria-label={textLabel} tabIndex={-1} aria-activedescendant={`${id}-${index}`} data-editor-overlay className="select-options" style={{ position: 'fixed', ...rect }}
+    {open && createPortal(<div ref={menu} id={id} role="listbox" aria-label={textLabel} tabIndex={-1} aria-activedescendant={`${id}-${index}`} data-editor-overlay className="select-options" style={{ position: 'fixed', ...rect, zIndex:layer+20 }}
       onKeyDown={e => {
         e.stopPropagation();
         if (e.key === 'Escape' || e.key === 'Tab') { setOpen(false); trigger.current?.focus(); if (e.key === 'Escape') e.preventDefault(); }

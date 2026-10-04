@@ -74,7 +74,9 @@ test("cross-origin saves, compact audio, hover actions, names, ports and desktop
   ).toBeVisible();
   const ab = (await audio.boundingBox())!,
     rb = (await audio.locator(".node-replace").boundingBox())!;
-  expect(Math.abs(rb.x + rb.width / 2 - (ab.x + ab.width / 2))).toBeLessThan(2);
+  // Audio replacement is an inline player action; it must stay within the node.
+  expect(rb.x).toBeGreaterThanOrEqual(ab.x);
+  expect(rb.x + rb.width).toBeLessThanOrEqual(ab.x + ab.width);
   expect(rb.y).toBeGreaterThan(ab.y);
   expect(rb.y + rb.height).toBeLessThan(ab.y + ab.height);
   await expect(audio.locator(".node-port svg").first()).toHaveCSS(

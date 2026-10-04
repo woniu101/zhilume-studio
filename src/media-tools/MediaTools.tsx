@@ -1,3 +1,5 @@
+import { ReferenceBrowser } from '../generation/ReferenceBrowser';
+import { PanelAction } from '../overlays';
 import { useEffect, useRef, useState } from "react";
 import { api, mediaUrl, uploadAsset } from "../api";
 import { Modal } from "../ui";
@@ -167,7 +169,8 @@ export function MediaTools({ asset, assets, close, complete, submit }: {
                 <label>背景<input type="color" value={params.background} onChange={e => field("background", e.target.value)} /></label>
               </div>
               <p className="muted">最多 16 张，完整保留图片比例。点击图片加入或移除，下方箭头调整顺序。</p>
-              <div className="media-tool-assets">{assets.filter(a => a.kind === "image").map(a => <button key={a.id} aria-pressed={ids.includes(a.id)} title={a.filename} onClick={() => setIds(old => old.includes(a.id) ? old.filter(id => id !== a.id) : old.length < 16 ? [...old, a.id] : old)}><img src={mediaUrl(a.url)} alt={a.filename} /><span>{ids.includes(a.id) ? ids.indexOf(a.id) + 1 : "+"}</span></button>)}</div>
+              <div className="media-tool-assets">{assets.filter(a => ids.includes(a.id)).map(a => <button key={a.id} aria-pressed={ids.includes(a.id)} title={a.filename} onClick={() => setIds(old => old.includes(a.id) ? old.filter(id => id !== a.id) : old.length < 16 ? [...old, a.id] : old)}><img src={mediaUrl(a.url)} alt={a.filename} /><span>{ids.includes(a.id) ? ids.indexOf(a.id) + 1 : "+"}</span></button>)}</div>
+              <PanelAction title="选择拼图图片" label="添加拼图素材" wide><ReferenceBrowser label="拼图素材" kinds={["image"]} selectedIds={ids} disabled={busy || ids.length >= 16} choose={a => setIds(old => [...old,a.id])}/></PanelAction>
               <ol className="collage-order">{ids.map((id, i) => <li key={id}><span>{assets.find(a => a.id === id)?.filename}</span><button aria-label={`将第 ${i + 1} 张向前移动`} disabled={!i} onClick={() => setIds(old => { const next = [...old]; [next[i - 1], next[i]] = [next[i], next[i - 1]]; return next; })}>←</button></li>)}</ol>
               {collagePreview && <img className="collage-preview" src={collagePreview} alt="拼图预览" />}
             </> : <>

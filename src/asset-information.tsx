@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AudioLines, Film, ImageIcon, Type } from "lucide-react";
 import { connection, mediaUrl, sizeLabel } from "./api";
 
-type Asset = { id: string; kind: string; filename: string; size: number; sha256: string; url: string; mimeType?: string };
+type Asset = { id: string; kind: string; filename: string; size: number; sha256: string; url: string; mimeType?: string; metadata?: Information & {status:string} };
 type Information = { width?: number; height?: number; duration?: number; poster?: string; error?: string };
 const cache = new Map<string, Information>();
 const pending = new Map<string, Promise<Information>>();
@@ -132,7 +132,7 @@ function load(asset: Asset, retry = false): Promise<Information> {
   pending.set(key, job);
   return job;
 }
-function useInformation(asset: Asset) {
+function useInformation(asset: Asset, needPoster = false) {
   const ref = useRef<HTMLDivElement>(null);
   const [info, setInfo] = useState<Information>();
   const [attempt, retry] = useState(0);
@@ -142,10 +142,11 @@ function useInformation(asset: Asset) {
     const receive = (value: Information) => { if (active && started) setInfo(value); };
     const group = listeners.get(key) || new Set();
     group.add(receive); listeners.set(key, group);
-    setInfo(undefined);
+    setInfo(asset.metadata?.status === "ready" ? asset.metadata : undefined);
     const observer = new IntersectionObserver(entries => {
       if (started || !entries.some(e => e.isIntersecting)) return;
       started = true; observer.disconnect();
+      if (asset.metadata?.status === "ready" && (!needPoster || asset.kind !== "video")) { setInfo(asset.metadata); return; }
       void load(asset, attempt > 0).then(value => { if (active) setInfo(value); });
     }, { rootMargin: "120px" });
     if (ref.current) observer.observe(ref.current);
@@ -153,7 +154,7 @@ function useInformation(asset: Asset) {
       active = false; observer.disconnect(); group.delete(receive);
       if (!group.size) listeners.delete(key);
     };
-  }, [asset.id, asset.sha256, asset.url, attempt]);
+  }, [asset.id, asset.sha256, asset.url, attempt, needPoster]);
   return { ref, info, retry: () => retry(a => a + 1) };
 }
 function durationLabel(seconds: number) {
@@ -161,7 +162,7 @@ function durationLabel(seconds: number) {
   return `${Math.floor(rounded / 60)}:${String(rounded % 60).padStart(2, "0")}`;
 }
 export function AssetThumbnail({ asset }: { asset: Asset }) {
-  const { ref, info } = useInformation(asset);
+  const { ref, info } = useInformation(asset, true);
   const Icon = ({ image: ImageIcon, video: Film, audio: AudioLines, text: Type })[asset.kind] || Type;
   return <div className="asset-thumb" ref={ref} title={info?.error || asset.filename}>
     {asset.kind === "image" && !info?.error ? <img loading="lazy" src={mediaUrl(asset.url)} alt={asset.filename} />
@@ -171,7 +172,8 @@ export function AssetThumbnail({ asset }: { asset: Asset }) {
   </div>;
 }
 export function AssetInformation({ asset, compact = false }: { asset: Asset; compact?: boolean }) {
-  const { ref, info, retry } = useInformation(asset);
+  const { ref, info: inspected, retry } = useInformation(asset);
+  const info = asset.metadata?.status === "ready" ? asset.metadata : inspected;
   const format = asset.filename.split(".").pop()?.toUpperCase() || asset.kind;
   const parts = [format, sizeLabel(asset.size)];
   if (info?.width && info.height) parts.push(`${info.width} × ${info.height}`);

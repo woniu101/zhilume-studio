@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { X } from 'lucide-react';
 import { mediaUrl } from '../api';
 
-export type ReferenceAsset = {id:string; kind:string; filename:string; url:string};
+export type ReferenceAsset = {id:string; kind:string; filename:string; url:string; size?:number; metadata?:{status:string; width?:number; height?:number; duration?:number}};
 export function ReferenceCard({asset,title,detail,remove,children,empty=false}:{asset?:ReferenceAsset;title:string;detail?:string;remove:()=>void;children:ReactNode;empty?:boolean}) {
   return <article className="reference-card" data-kind={asset?.kind} aria-label={title}>
     <header><strong>{title}</strong>{!empty && <button aria-label={`移除${title}`} onClick={remove}><X size={12}/></button>}</header>
